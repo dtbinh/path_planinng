@@ -40,7 +40,7 @@ function [DT_set,pinch_bin] = get_multi_depth_DT(map3,ray_origin,azim_set,elev_s
        DT = signed_distance_transform([cast_res ; cast_res ; cast_res]); % periodic distance transform         
        DT = DT(N_azim+1:2*N_azim,:);  
        if sum(DT) == inf
-            disp('hey')
+            disp('No occlusion found. distance field will be returned as inf ')
        end
        DT_set{i} = DT;
    end

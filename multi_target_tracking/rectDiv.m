@@ -39,7 +39,7 @@ function rects=rectDiv(DT,N_rect,r_max_stride,c_max_stride,stride_res)
 
                         
         
-           %% trial 1 : column expansion and row expansion 
+           %% trial 1 : column expansion and row expansion (4 direction)
            % column expansion 
            
             % default rectangle region 
@@ -47,12 +47,39 @@ function rects=rectDiv(DT,N_rect,r_max_stride,c_max_stride,stride_res)
             r_upper= r_lmx;
             c_lower = c_lmx;
             c_upper = c_lmx;
+           
+            plot(r_lmx,c_lmx,'g*','MarkerSize',8,'MarkerFaceColor','r')
+            
+            
+           for c_exp1 = 1:c_max_stride
+            c_lower_prev = c_lower;            
+            c_lower = max(c_lmx - stride_res * c_exp1,1);
+            
+            
+            % does it contain null region ?
+            boundary_edge_r = boundary_rc(:,1); boundary_edge_c = boundary_rc(:,2);
+            included_null=(r_lower <= boundary_edge_r) ...
+                & (boundary_edge_r <= r_upper) ...
+                & (boundary_edge_c <= c_upper) ...
+                & (boundary_edge_c >= c_lower);
+                        
+            x1 = r_lower;
+            y1 =c_lower;
+            x2 = r_upper;
+            y2 = c_upper;
+            
+            if sum(included_null) 
+                c_lower = c_lower_prev;
+                break % break the loop 
+            end
+            
+         patch([x1 x1 x2 x2],[y1 y2 y2 y1],ones(1,3),'FaceAlpha',0.1,'EdgeColor','g')
+         
+           end
+           
            
            for c_exp1 = 1:c_max_stride
-            c_lower_prev = c_lower;
-            c_upper_prev  = c_upper;
-            
-            c_lower = max(c_lmx - stride_res * c_exp1,1);
+            c_upper_prev  = c_upper;            
             c_upper = min(c_lmx + stride_res *c_exp1,size(DT,2));
             
             
@@ -69,9 +96,8 @@ function rects=rectDiv(DT,N_rect,r_max_stride,c_max_stride,stride_res)
             y2 = c_upper;
 
 
-            
+
             if sum(included_null) 
-                c_lower = c_lower_prev;
                 c_upper = c_upper_prev;
                 break % break the loop 
             end
@@ -82,15 +108,14 @@ function rects=rectDiv(DT,N_rect,r_max_stride,c_max_stride,stride_res)
            end
            
            
+           
+           
         % row expansion 
         for r_exp = 1:r_max_stride
             % box region 
             
-            r_lower_prev = r_lower;
-            r_upper_prev = r_upper;
-            
+            r_lower_prev = r_lower;            
             r_lower = max(r_lmx - stride_res *  r_exp,1);
-            r_upper = min(r_lmx + stride_res * r_exp,size(DT,1));
                         
             
             
@@ -113,7 +138,6 @@ function rects=rectDiv(DT,N_rect,r_max_stride,c_max_stride,stride_res)
             
             if sum(included_null) 
                 r_lower = r_lower_prev;
-                r_upper = r_upper_prev;
                 break % break the loop 
             end
             
@@ -123,39 +147,12 @@ function rects=rectDiv(DT,N_rect,r_max_stride,c_max_stride,stride_res)
         end
         
         
-    % let's check the volume of this 
-    vol = (r_upper - r_lower) * (c_upper - c_lower);
-    
-    if vol >= vol_max 
-        r_upper_max = r_upper;
-        r_lower_max = r_lower;
-        c_upper_max = c_upper;
-        c_lower_max = c_lower;
-        vol_max = vol;
-    end
-    
-
-    
-            %% trial 2 : column expansion and row expansion 
-           % column expansion 
-           
-            % default rectangle region 
-            r_lower = r_lmx;
-            r_upper= r_lmx;
-            c_lower = c_lmx;
-            c_upper = c_lmx;
-           
-
-           
-           
+                             
         % row expansion 
         for r_exp = 1:r_max_stride
             % box region 
             
-            r_lower_prev = r_lower;
             r_upper_prev = r_upper;
-            
-            r_lower = max(r_lmx - stride_res *  r_exp,1);
             r_upper = min(r_lmx + stride_res * r_exp,size(DT,1));
                         
             
@@ -178,7 +175,6 @@ function rects=rectDiv(DT,N_rect,r_max_stride,c_max_stride,stride_res)
                 & (boundary_edge_c >= c_lower);
             
             if sum(included_null) 
-                r_lower = r_lower_prev;
                 r_upper = r_upper_prev;
                 break % break the loop 
             end
@@ -188,39 +184,9 @@ function rects=rectDiv(DT,N_rect,r_max_stride,c_max_stride,stride_res)
               
         end
         
-                   for c_exp1 = 1:c_max_stride
-            c_lower_prev = c_lower;
-            c_upper_prev  = c_upper;
-            
-            c_lower = max(c_lmx - stride_res * c_exp1,1);
-            c_upper = min(c_lmx + stride_res *c_exp1,size(DT,2));
-            
-            
-            % does it contain null region ?
-            boundary_edge_r = boundary_rc(:,1); boundary_edge_c = boundary_rc(:,2);
-            included_null=(r_lower <= boundary_edge_r) ...
-                & (boundary_edge_r <= r_upper) ...
-                & (boundary_edge_c <= c_upper) ...
-                & (boundary_edge_c >= c_lower);
-                        
-            x1 = r_lower;
-            y1 =c_lower;
-            x2 = r_upper;
-            y2 = c_upper;
-
-
-            
-            if sum(included_null) 
-                c_lower = c_lower_prev;
-                c_upper = c_upper_prev;
-                break % break the loop 
-            end
-            
-         patch([x1 x1 x2 x2],[y1 y2 y2 y1],ones(1,3),'FaceAlpha',0.1,'EdgeColor','g')
-         
-            
-           end
         
+        
+                        
     % let's check the volume of this 
     vol = (r_upper - r_lower) * (c_upper - c_lower);
     
@@ -231,6 +197,104 @@ function rects=rectDiv(DT,N_rect,r_max_stride,c_max_stride,stride_res)
         c_lower_max = c_lower;
         vol_max = vol;
     end
+    
+
+    
+%             %% trial 2 : column expansion and row expansion 
+%            % column expansion 
+%            
+%             % default rectangle region 
+%             r_lower = r_lmx;
+%             r_upper= r_lmx;
+%             c_lower = c_lmx;
+%             c_upper = c_lmx;
+%            
+% 
+%            
+%            
+%         % row expansion 
+%         for r_exp = 1:r_max_stride
+%             % box region 
+%             
+%             r_lower_prev = r_lower;
+%             r_upper_prev = r_upper;
+%             
+%             r_lower = max(r_lmx - stride_res *  r_exp,1);
+%             r_upper = min(r_lmx + stride_res * r_exp,size(DT,1));
+%                         
+%             
+%             
+%         x1 = r_lower;
+%         y1 =c_lower;
+%         x2 = r_upper;
+%         y2 = c_upper;
+%                 
+%             
+%             % plot 
+% %             plot(r_lmx,c_lmx,'g*','MarkerSize',8,'MarkerFaceColor','g')
+%             
+%                         
+%             % does it contain null region ?
+%             boundary_edge_r = boundary_rc(:,1); boundary_edge_c = boundary_rc(:,2);
+%             included_null=(r_lower <= boundary_edge_r) ...
+%                 & (boundary_edge_r <= r_upper) ...
+%                 & (boundary_edge_c <= c_upper) ...
+%                 & (boundary_edge_c >= c_lower);
+%             
+%             if sum(included_null) 
+%                 r_lower = r_lower_prev;
+%                 r_upper = r_upper_prev;
+%                 break % break the loop 
+%             end
+%             
+%           patch([x1 x1 x2 x2],[y1 y2 y2 y1],ones(1,3),'FaceAlpha',0.1,'EdgeColor','g')
+% 
+%               
+%         end
+%         
+%                    for c_exp1 = 1:c_max_stride
+%             c_lower_prev = c_lower;
+%             c_upper_prev  = c_upper;
+%             
+%             c_lower = max(c_lmx - stride_res * c_exp1,1);
+%             c_upper = min(c_lmx + stride_res *c_exp1,size(DT,2));
+%             
+%             
+%             % does it contain null region ?
+%             boundary_edge_r = boundary_rc(:,1); boundary_edge_c = boundary_rc(:,2);
+%             included_null=(r_lower <= boundary_edge_r) ...
+%                 & (boundary_edge_r <= r_upper) ...
+%                 & (boundary_edge_c <= c_upper) ...
+%                 & (boundary_edge_c >= c_lower);
+%                         
+%             x1 = r_lower;
+%             y1 =c_lower;
+%             x2 = r_upper;
+%             y2 = c_upper;
+% 
+% 
+%             
+%             if sum(included_null) 
+%                 c_lower = c_lower_prev;
+%                 c_upper = c_upper_prev;
+%                 break % break the loop 
+%             end
+%             
+%          patch([x1 x1 x2 x2],[y1 y2 y2 y1],ones(1,3),'FaceAlpha',0.1,'EdgeColor','g')
+%          
+%             
+%            end
+%         
+%     % let's check the volume of this 
+%     vol = (r_upper - r_lower) * (c_upper - c_lower);
+%     
+%     if vol >= vol_max 
+%         r_upper_max = r_upper;
+%         r_lower_max = r_lower;
+%         c_upper_max = c_upper;
+%         c_lower_max = c_lower;
+%         vol_max = vol;
+%     end
     
 
          

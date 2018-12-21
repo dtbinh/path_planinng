@@ -17,7 +17,7 @@ res = lx / map_dim;
 figure
 custom_map=makemap(map_dim); % draw obstacle interactively
 % load('problem_settings.mat')
-tracker = [1.4 1.4 2.0]';
+% tracker = [1.4 1.4 2.0]';
 
 % Generate map occupancy grid object and path of the two targets
 map = robotics.OccupancyGrid(flipud(custom_map),1/res);
@@ -64,8 +64,10 @@ end
 
 pcl_origin_pose = [ 0 0 0  1 0 0 0];  
 max_range = 20;
-map3.insertPointCloud(pcl_origin_pose,pcl,max_range);
-figure(1)
+if ~isempty(pcl) 
+    map3.insertPointCloud(pcl_origin_pose,pcl,max_range);
+end
+figure
 show(map3)
 axis equal
 hold on 
@@ -77,6 +79,7 @@ target2_xs  = targets_xs(2,:); target2_ys = targets_ys(2,:); targets_zs(2,:) = 0
 
 plot(target1_xs,target1_ys,'r^-','LineWidth',2)
 plot(target2_xs,target2_ys,'r^-','LineWidth',2)
+plot(tracker(1),tracker(2),'mo','MarkerFaceColor',[1 0 1],'MarkerSize',3)
 
 vis_cost_sets = {};
 hold off 
@@ -209,7 +212,6 @@ for n = 1:N_target
                 
                 
             else % if there's hit 
-                N_rect = 6; % number of recommendation rect 
                 rects = rectDiv(DT,N_rect,r_max_stride,c_max_stride,stride_res);                    
                 
                 plot_DT_rectDiv(DT,rects); 
@@ -440,6 +442,7 @@ for h = 1:H
                         
             A_bound = [1 0 0; -1 0 0; 0 1 0; 0 -1 0;0 0 1; 0 0 -1];
             b_bound = [xu ; -xl ; yu ; -yl ; zu ; -(max(target1_zs(h),target2_zs(h))+blind_height)];
+
             
             [~,~,flag]=linprog([],[Ai ; Aj ],[bi ; bj] ,[],[],[xl yl zl],[xu yu zu]);
             
@@ -509,11 +512,17 @@ for h =1 :H
         % FOV blind region plot        
 %         is_in_blind3([target1_xs(h) target1_ys(h) height],[target2_xs(h) target2_ys(h) height],FOV,[],1);
         
-        for k = 1:length(vis_cost_set{h})                
+        for k = 1:length(vis_cost_set{h})        
+            
             alpha = 1/vis_cost_set{h}(k);   
             alpha_max = max(1./vis_cost_set{h});
             alpha_min = min(1./vis_cost_set{h});
-            [r,g,b]  = getRGB(alpha,alpha_min,alpha_max,1);
+            if (alpha_max ~= inf) && (alpha ~= inf) && (alpha_min ~= inf)
+                [r,g,b]  = getRGB(alpha,alpha_min,alpha_max,1);
+            else
+                r = 1; g = 0; b = 0;
+            end
+            
             plotregion(-A_div{h}{k} ,-b_div{h}{k} ,[xl yl zl]',[xu yu zu]',[r,g,b],0.5);
             plot(c_div{h}{k}(1),c_div{h}{k}(2),'ks','MarkerSize',1.5,'MarkerFaceColor','k');            
         end
@@ -606,7 +615,8 @@ corridor_polygon_seq = {};
 
 for h = 1:H    
     subplot(2,2,h)
-    plotregion(-A_div{h}{idx_seq(h)} ,-b_div{h}{idx_seq(h)} ,[xl yl zl]',[xu yu zu]',[1,0,1],0,,'g-');
+     
+    plotregion(-A_div{h}{idx_seq(h)} ,-b_div{h}{idx_seq(h)} ,[xl yl zl]',[xu yu zu]',[1,0,1],0);
     hold on
     % 2D version 
 %     waypoint_polygon_seq{h}.A = A_div{h}{idx_seq(h)};
@@ -624,8 +634,8 @@ for h = 1:H
     vert2 = v_div{h}{idx_seq(h)};         
     vert = [vert1 ; vert2];       
     K = convhull(vert(:,1), vert(:,2),vert(:,3));    
-    shp = alphaShape(vert(:,1),vert(:,2),vert(:,3),1);
-%     plot(shp,'EdgeColor','g','FaceColor',[0 0 0],'FaceAlpha',0)
+    shp = alphaShape(vert2(:,1),vert2(:,2),vert2(:,3),2);
+    plot(shp,'EdgeColor','g','FaceColor',[0 0 0],'FaceAlpha',0,'LineWidth',1)
     
     [A_corr,b_corr]=vert2con(vert(K,:));
     % corridor connecting each waypoint polygon 

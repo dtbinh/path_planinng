@@ -1,6 +1,5 @@
 
-close all
-
+figure
 n=15;
 vec1=sin(linspace(0,2*pi*(1-1/n),n))';
 vec2=cos(linspace(0,2*pi*(1-1/n),n))';
