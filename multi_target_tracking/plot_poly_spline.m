@@ -8,7 +8,7 @@ function [knot_x,knot_y,knot_z]=plot_poly_spline(Ts,pxs,pys,pzs)
     
     n_seg=length(Ts)-1;
     n_poly=length(pxs)/n_seg-1;
-    N=5;
+    N=5; % the number of sample in each segment 
     xs=[]; ys=[]; zs=[];
     ts=[];
     % per segement 

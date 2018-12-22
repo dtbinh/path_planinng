@@ -30,6 +30,7 @@ show(map);
 targets_xs = [target1_xs ; target2_xs];
 targets_ys = [target1_ys ; target2_ys];
 
+
 % Clustering and give height for each obstacle 
 epsilon=1; % neihbor hood bound 
 MinPts=5; % minimum grouping index 
@@ -305,8 +306,7 @@ end % target
 color_set = [1 0 0;0 0 1]; % for 1st target - red / 2nd target - blue 
 
 H = length(target1_xs);
-target1_zs = ones(1,H);
-target2_zs = ones(1,H);
+
 
 
 % plot3(tracker(1),tracker(2),tracker(3),'mo','MarkerFaceColor','m')
@@ -328,6 +328,9 @@ yu = domain_y(2) +margin;
 
 zl = domain_z(1) - margin;
 zu = domain_z(2) + margin;
+
+target1_zs = targets_zs(1,:);
+target2_zs = targets_zs(2,:);
 
 for n = 1: N_target         
       figure
@@ -405,6 +408,7 @@ v_div = {}; % convex vertex
 vis_cost_set = {};
 Nk = 0; % number of valid regions 
 ratio = 1; % importance ratio of vis2 to vis1
+blind_heights = [];
 for h = 1:H    
     A_div{h} = {};
     b_div{h} = {};
@@ -413,8 +417,10 @@ for h = 1:H
     Nk = 0;
     
     % we reject the blind region 
-    rel_dist = norm([target1_xs(h) target1_ys(h)] - [target2_xs(h) target2_ys(h)]); % distance between the targets 
+    rel_dist = norm([target1_xs(h) target1_ys(h)] - [target2_xs(h) target2_ys(h)]); % distance between the targets  2D plane assumed 
     blind_height = rel_dist/2/tan(FOV/2);
+    blind_heights = [blind_heights blind_height];
+
     
     
     
@@ -444,7 +450,7 @@ for h = 1:H
             b_bound = [xu ; -xl ; yu ; -yl ; zu ; -(max(target1_zs(h),target2_zs(h))+blind_height)];
 
             
-            [~,~,flag]=linprog([],[Ai ; Aj ],[bi ; bj] ,[],[],[xl yl zl],[xu yu zu]);
+            [~,~,flag]=linprog([],[Ai ; Aj ; A_bound],[bi ; bj ; b_bound]);
             
             
             if (flag ~= -2) % feasibility test pass
@@ -498,19 +504,23 @@ for h =1 :H
         
         show(map3)
         hold on 
-        plot(target1_xs,target1_ys,'r^-','LineWidth',2)
+        plot3(target1_xs,target1_ys,target1_zs,'r^-','LineWidth',2)
        
-        plot(target1_xs(h),target1_ys(h),'rs','LineWidth',3,'MarkerSize',10)
+        plot3(target1_xs(h),target1_ys(h),target1_zs(h),'rs','LineWidth',3,'MarkerSize',10)
 
-        plot(target2_xs,target2_ys,'r^-','LineWidth',2)
+        plot3(target2_xs,target2_ys,target2_zs,'r^-','LineWidth',2)
         
-        plot(target2_xs(h),target2_ys(h),'rs','LineWidth',3,'MarkerSize',10)
+        plot3(target2_xs(h),target2_ys(h),target2_zs(h),'rs','LineWidth',3,'MarkerSize',10)
 
         plot3(tracker(1),tracker(2),tracker(3),'mo','MarkerFaceColor','m')
         draw_box([xl yl zl],[xu yu zu],'k',0.1)
         
-        % FOV blind region plot        
-%         is_in_blind3([target1_xs(h) target1_ys(h) height],[target2_xs(h) target2_ys(h) height],FOV,[],1);
+        
+        % we draw blind height 
+        
+        patch([xl xl xu xu],[yl yu yu yl],(target1_zs(1)+blind_heights(h))*ones(1,4),'b','FaceAlpha',0.4)
+        
+
         
         for k = 1:length(vis_cost_set{h})        
             
@@ -524,7 +534,7 @@ for h =1 :H
             end
             
             plotregion(-A_div{h}{k} ,-b_div{h}{k} ,[xl yl zl]',[xu yu zu]',[r,g,b],0.5);
-            plot(c_div{h}{k}(1),c_div{h}{k}(2),'ks','MarkerSize',1.5,'MarkerFaceColor','k');            
+            plot3(c_div{h}{k}(1),c_div{h}{k}(2),c_div{h}{k}(3),'gs','MarkerSize',1.5,'MarkerFaceColor','g');            
         end
         
         axis([xl xu yl yu zl zu])
@@ -662,7 +672,7 @@ Xddot0 = zeros(3,1);
 [pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,corridor_polygon_seq);
 
 % draw path 
-figure(1) 
+
 for h = 1:H
     subplot(2,2,h)
     hold on
@@ -698,9 +708,24 @@ for i = 1: length(knot_x)-1
     camera_origin = [knot_x(i+1) knot_y(i+1) knot_z(i+1)];
    
     % body axis of camera
-    seeing_pnt  = [(target1_xs(i) + target2_xs(i))/2 ...
-        (target1_ys(i) + target2_ys(i))/2 ...
-        (target1_zs(i) + target2_zs(i))/2 ];
+    
+    v1 = [(-camera_origin(1)  + target1_xs(i)) (-camera_origin(2)  + target1_ys(i)) (-camera_origin(3)  + target1_zs(i)) ]'; % bearing vector to target1
+    v2 = [(-camera_origin(1)  + target2_xs(i)) (-camera_origin(2)  + target2_ys(i)) (-camera_origin(3)  + target2_zs(i)) ]'; % bearing vector to target2
+
+    % we pick the bearing point by equally dividing the angle of v1 and v2 
+    
+    target1 = [target1_xs(i) target1_ys(i) target1_zs(i)];
+    target2 = [target2_xs(i) target2_ys(i) target2_zs(i)];
+    seeing_pnt = (norm(v2)*target1 + norm(v1)*target2)/(norm(v1) + norm(v2));
+    
+    
+    
+%     % viewing the midpoint does not guarantee FOV constraint 
+%     seeing_pnt  = [(target1_xs(i) + target2_xs(i))/2 ...
+%         (target1_ys(i) + target2_ys(i))/2 ...
+%         (target1_zs(i) + target2_zs(i))/2 ];
+%     
+    
     
     xb = seeing_pnt - camera_origin;
     xb = xb'/norm(xb); % 3 x 1 
@@ -717,7 +742,6 @@ for i = 1: length(knot_x)-1
     % draw the projection of target1 
     plot3([camera_origin(1) target1_xs(i)],[camera_origin(2) target1_ys(i)],[camera_origin(3) target1_zs(i)],'r-')
 
-    v1 = [(-camera_origin(1)  + target1_xs(i)) (-camera_origin(2)  + target1_ys(i)) (-camera_origin(3)  + target1_zs(i)) ]'; % bearing vector to target1
     t1 = (norm(xb)^2 * h )/(xb' * v1);
     proj_img_plane = camera_origin' + t1 * v1;
     plot3(proj_img_plane(1),proj_img_plane(2),proj_img_plane(3),'r*')
@@ -726,7 +750,6 @@ for i = 1: length(knot_x)-1
     % draw the projection of target2 
     plot3([camera_origin(1) target2_xs(i)],[camera_origin(2) target2_ys(i)],[camera_origin(3) target2_zs(i)],'r-')
 
-    v2 = [(-camera_origin(1)  + target2_xs(i)) (-camera_origin(2)  + target2_ys(i)) (-camera_origin(3)  + target2_zs(i)) ]'; % bearing vector to target2
     t2 = (norm(xb)^2 * h )/(xb' * v2);
     proj_img_plane = camera_origin' + t2 * v2;
     plot3(proj_img_plane(1),proj_img_plane(2),proj_img_plane(3),'r*')

@@ -13,12 +13,12 @@ function [check,shp_obj]=is_in_blind3(target1,target2,FOV,x_pnts,plot_flag)
 %     x_pnts = reshape(x_pnts,[],3);
     
     l = norm(target1 - target2);
-    r = l / sqrt(2*(1-cos(FOV)));
+    r = l / sqrt(2*(1-cos(pi-FOV)));
     
     % generate point clouds => will wrap with alphaShape 
     
     % resolution of sampling 
-    N = 6;
+    N = 7;
     M = 16;
         
     % sampling on the plane 
@@ -73,7 +73,7 @@ function [check,shp_obj]=is_in_blind3(target1,target2,FOV,x_pnts,plot_flag)
     end
     
     if plot_flag
-        plot(shp_obj)    
+        plot(shp_obj,'FaceAlpha',0.3)    
     end
     %%  Check the result     
 %     figure(1)

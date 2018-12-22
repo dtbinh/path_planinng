@@ -27,7 +27,7 @@ function [pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,cor
     zddot0 = Xddot0(3);
         
     n_seg=length(ts)-1; % future step
-    poly_order=5; % for jerk, order 5 is enough 
+    poly_order=6; % for jerk, order 5 is enough 
    
     n_var = (poly_order+1) * n_seg * 3; % length of optimization variables
     
