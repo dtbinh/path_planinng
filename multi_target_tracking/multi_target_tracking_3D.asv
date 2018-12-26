@@ -4,6 +4,7 @@
 addpath('..\ASAP1','.\','..\plotregion\');
 addpath('..\STOMP\')
 addpath('..\intercept\') % for Rplot and proj_image
+addpath('polytopes_2017_10_04_v1.9\')
 
 %% Phase1 : Map setting in 2D projection space
 
@@ -15,6 +16,7 @@ res = lx / map_dim;
 % this is problem settings block 
 %%%%%%%%%%%%
 figure
+hold on 
 custom_map=makemap(map_dim); % draw obstacle interactively
 % load('problem_settings.mat')
 % tracker = [1.4 1.4 2.0]';
@@ -39,9 +41,12 @@ occ_cells= [occ_rows occ_cols];
 IDX=DBSCAN(occ_cells,epsilon,MinPts);
 figure
 PlotClusterinResult(occ_cells,IDX)
-heights = [2,8];
 
-% construct 3D map from 2D ground plan 
+% Height setting is specific for map settings
+heights = [2,0.2, 5];
+heights_start = [0 2 0];
+
+% Construct 3D map from 2D ground plan 
 map3 = robotics.OccupancyMap3D(map.Resolution);
 res = map.Resolution;
 
@@ -55,7 +60,7 @@ for idx = 1:max(IDX)
     boxes{idx}.upper = [max(xy_pnts) heights(idx)];
     
     for r = 1:size(xy_pnts,1)
-            zs = 0:1/res/2:heights(idx);
+            zs = heights_start(idx) + (0:1/res/2:heights(idx));
             for z = zs                
                 % point cloud append 
                 pcl = [pcl ; [xy_pnts(r,:) z]] ;               
@@ -89,7 +94,7 @@ hold off
 % parameter for observation 
 d_ref = 2;
 N_azim = [40,40];
-N_elev = [10, 10];
+N_elev = [20, 20];
 
 % parameter for sub-division             
 N_rect = 10; r_max_stride = 5; % caution: should not be bigger than N_azim/4
@@ -372,8 +377,7 @@ for n = 1: N_target
                     end                    
                 end
                 
-                
-                
+                                
                 % for rect segment in the pinch 
                 for s = 1:length(visi_info_set{n}.A_set{h}{p}) 
                     alpha = 1/visi_info_set{n}.cost_set{h}{p}(s);
@@ -397,16 +401,13 @@ end
 
 %% Phase 5 : Combination for divided regions 
 
-
 % intersection region of the two polyhydra corresponding to each target
 FOV = 120 * pi/180;
-pruning_vol = 0.2;
+pruning_vol = 0.1;
 A_div = {};
 b_div = {};
 c_div = {}; % center of each convex polyhedra
 v_div = {}; % convex vertex 
-
-
 
 
 
@@ -422,11 +423,15 @@ for h = 1:H
     Nk = 0;
     
     
+    
+    
     % Firstly, we find blind region of the two targets 
+    target1 = [target1_xs(h) target1_ys(h) target1_zs(h)]';
+    target2 = [target2_xs(h) target2_ys(h) target2_zs(h)]';
+    
+    % please put the vector 
     [As_no_blind,bs_no_blind,~,~] = no_blind_region(target1,target2,FOV);
     
-   
-       
     for i = 1:length(visi_info_set{1}.cost_set_flat{h})
         for j = 1:length(visi_info_set{2}.cost_set_flat{h})
             
@@ -453,7 +458,7 @@ for h = 1:H
 %             b_bound = [xu ; -xl ; yu ; -yl ; zu ; -(max(target1_zs(h),target2_zs(h))+blind_height)];
             b_bound = [xu ; -xl ; yu ; -yl ; zu ; -zl];
 
-            linprog_options = optimoptions('Display','none');
+            linprog_options = optimoptions('linprog','Display','none');
             [~,~,flag]=linprog([],[A_intsec; A_bound],[b_intsec ; b_bound],[],[],[],[],[],linprog_options);
             
             
@@ -468,17 +473,17 @@ for h = 1:H
 %                 vertices = con2vert([A_bound;A_intsec ],[b_bound ;b_intsec]); % the vertices of this region   
                 
                
-               for seg = 1:16
+               for seg = 1:17
                    
                 % we investigate if the intersection ([Ai,Aj] , [bi;bj]) belongs to one of no_blind_region    
-                [~,~,no_blind_flag] = linprog([],[A_intsec;A_bound ; As_no_blind{seg}],[b_intsec;b_bound;bs_no_blind{seg}],[],[],[],[],[],llinprog_options) ;  
+                [~,~,no_blind_flag] = linprog([],[A_intsec;A_bound ; As_no_blind{seg}],[b_intsec;b_bound;bs_no_blind{seg}],[],[],[],[],[],linprog_options) ;  
                    
                 if  (no_blind_flag ~= -2) 
                     
                 % let's find vertex to find the volume of the region 
                 
                     try  
-                        vertices = con2vert([A_bound;A_intsec ],[;b_bound ;b_intsec]); % the vertices of this region   
+                        vertices = lcon2vert([A_bound;A_intsec; As_no_blind{seg} ],[;b_bound ;b_intsec ;bs_no_blind{seg}] ); % the vertices of this region   
                    catch
                         warning('no vertex could be found')
                         vertices = [];
@@ -493,20 +498,19 @@ for h = 1:H
                    vol = shp.volume;
 
                        if vol >= pruning_vol
-                          Nk = Nk + 1;                     
-                           A_div{h}{Nk} = [A_intsec; A_bound];
-                           b_div{h}{Nk} = [b_intsec; b_bound]; 
+                           Nk = Nk + 1;                     
+                           A_div{h}{Nk} = [A_intsec; A_bound ; As_no_blind{seg}];
+                           b_div{h}{Nk} = [b_intsec; b_bound ; bs_no_blind{seg}]; 
                            v_div{h}{Nk} =  vertices;
                            c_div{h}{Nk} = mean(vertices); % center of each segment                
-
                            vis_cost_set{h}(Nk) =  vis_cost1 + ratio * vis_cost2; % let's assign the visibility cost to here    
                        end
 
-                  end
+                   end % vertex test
                
-               end
-            end % feasibility test pass
-                        
+                end % no blind region test pass 
+               end  % no blind segment 
+            end    % feasibility test pass
         end        
     end
 end
@@ -527,13 +531,16 @@ for h =1 :H
         plot3(target2_xs(h),target2_ys(h),target2_zs(h),'rs','LineWidth',3,'MarkerSize',10)
 
         plot3(tracker(1),tracker(2),tracker(3),'mo','MarkerFaceColor','m')
-        draw_box([xl yl zl],[xu yu zu],'k',0.1)
+%         draw_box([xl yl zl],[xu yu zu],'k',0.1)
         
+        target1 = [target1_xs(h) target1_ys(h) target1_zs(h)];
+        target2 = [target2_xs(h) target2_ys(h) target2_zs(h)];
         
         % we draw blind height 
         
-        patch([xl xl xu xu],[yl yu yu yl],(target1_zs(1)+blind_heights(h))*ones(1,4),'b','FaceAlpha',0.4)
-        
+%         patch([xl xl xu xu],[yl yu yu yl],(target1_zs(1)+blind_heights(h))*ones(1,4),'b','FaceAlpha',0.4)
+        [~,~,A_blind,b_blind]=no_blind_region(target1',target2',FOV);
+        plotregion(-A_blind,-b_blind,[xl yl zl],[xu yu zu],'k',0.3)
 
         
         for k = 1:length(vis_cost_set{h})        
@@ -566,7 +573,7 @@ node_name_array{1} = name_vec; % initialize the node name array
 
 w_v = 50; % visibility weight for optimization 
 w_d = 1; % weight for desired distance 
-d_max = 10; % allowable connecting distane btw "center of region"
+d_max = 5; % allowable connecting distane btw "center of region"
 Astar_G = digraph();
 
 % for update egde only once at the final phase 
@@ -622,7 +629,7 @@ end
  
 Astar_G=Astar_G.addedge(node1_list,node2_list, (weight_list));
 [path_idx,total_cost]=Astar_G.shortestpath('t0n1','xf','Method','auto');
-%% Phase 8 : plotting the planned path
+%% Phase 8 : plotting the planned path of polyhedron 
 
 hold on 
 idx_seq = [];
@@ -636,6 +643,8 @@ conv_hull = {};
 
 waypoint_polygon_seq = {};
 corridor_polygon_seq = {};
+
+center_seq = []; % 3 x H 
 
 for h = 1:H    
     subplot(2,2,h)
@@ -655,11 +664,12 @@ for h = 1:H
     else
         vert1 = v_div{h-1}{idx_seq(h-1)};        
     end    
-    vert2 = v_div{h}{idx_seq(h)};         
+    vert2 = v_div{h}{idx_seq(h)};    
+    center_seq = [cenc_div{h}{idx_seq{h}}']
     vert = [vert1 ; vert2];       
     K = convhull(vert(:,1), vert(:,2),vert(:,3));    
     shp = alphaShape(vert2(:,1),vert2(:,2),vert2(:,3),2);
-    plot(shp,'EdgeColor','g','FaceColor',[0 0 0],'FaceAlpha',0,'LineWidth',1)
+    plot(shp,'EdgeColor','g','FaceColor',[0 1 0],'FaceAlpha',1,'LineWidth',1)
     
     [A_corr,b_corr]=vert2con(vert(K,:));
     % corridor connecting each waypoint polygon 
@@ -711,9 +721,11 @@ draw_box([xl yl zl],[xu yu zu],'k',0.1)
 % this is wrapping of the octomap voxels 
 margin = 0.5*ones (1,3);
 
-for idx = 1:max(IDX)
-    draw_box(boxes{idx}.lower - margin,boxes{idx}.upper + margin,'k',0.6)
-end
+% for idx = 1:max(IDX)
+%     draw_box(boxes{idx}.lower - margin,boxes{idx}.upper + margin,'k',0.6)
+% end
+
+show(map3)
 
 [knot_x,knot_y, knot_z]=plot_poly_spline(ts,reshape(pxs,[],1),reshape(pys,[],1),reshape(pzs,[],1));  
 

@@ -16,6 +16,7 @@ res = lx / map_dim;
 % this is problem settings block 
 %%%%%%%%%%%%
 figure
+hold on 
 custom_map=makemap(map_dim); % draw obstacle interactively
 % load('problem_settings.mat')
 % tracker = [1.4 1.4 2.0]';
@@ -40,9 +41,12 @@ occ_cells= [occ_rows occ_cols];
 IDX=DBSCAN(occ_cells,epsilon,MinPts);
 figure
 PlotClusterinResult(occ_cells,IDX)
-heights = [2,8];
 
-% construct 3D map from 2D ground plan 
+% Height setting is specific for map settings
+heights = [2,0.2, 5];
+heights_start = [0 2 0];
+
+% Construct 3D map from 2D ground plan 
 map3 = robotics.OccupancyMap3D(map.Resolution);
 res = map.Resolution;
 
@@ -56,7 +60,7 @@ for idx = 1:max(IDX)
     boxes{idx}.upper = [max(xy_pnts) heights(idx)];
     
     for r = 1:size(xy_pnts,1)
-            zs = 0:1/res/2:heights(idx);
+            zs = heights_start(idx) + (0:1/res/2:heights(idx));
             for z = zs                
                 % point cloud append 
                 pcl = [pcl ; [xy_pnts(r,:) z]] ;               
@@ -90,7 +94,7 @@ hold off
 % parameter for observation 
 d_ref = 2;
 N_azim = [40,40];
-N_elev = [10, 10];
+N_elev = [20, 20];
 
 % parameter for sub-division             
 N_rect = 10; r_max_stride = 5; % caution: should not be bigger than N_azim/4
@@ -399,7 +403,7 @@ end
 
 % intersection region of the two polyhydra corresponding to each target
 FOV = 120 * pi/180;
-pruning_vol = 0.5;
+pruning_vol = 0.1;
 A_div = {};
 b_div = {};
 c_div = {}; % center of each convex polyhedra
@@ -569,7 +573,7 @@ node_name_array{1} = name_vec; % initialize the node name array
 
 w_v = 50; % visibility weight for optimization 
 w_d = 1; % weight for desired distance 
-d_max = 10; % allowable connecting distane btw "center of region"
+d_max = 5; % allowable connecting distane btw "center of region"
 Astar_G = digraph();
 
 % for update egde only once at the final phase 
@@ -625,7 +629,7 @@ end
  
 Astar_G=Astar_G.addedge(node1_list,node2_list, (weight_list));
 [path_idx,total_cost]=Astar_G.shortestpath('t0n1','xf','Method','auto');
-%% Phase 8 : plotting the planned path
+%% Phase 8 : plotting the planned path of polyhedron 
 
 hold on 
 idx_seq = [];
@@ -639,6 +643,7 @@ conv_hull = {};
 
 waypoint_polygon_seq = {};
 corridor_polygon_seq = {};
+
 
 for h = 1:H    
     subplot(2,2,h)
@@ -658,11 +663,11 @@ for h = 1:H
     else
         vert1 = v_div{h-1}{idx_seq(h-1)};        
     end    
-    vert2 = v_div{h}{idx_seq(h)};         
+    vert2 = v_div{h}{idx_seq(h)};    
     vert = [vert1 ; vert2];       
     K = convhull(vert(:,1), vert(:,2),vert(:,3));    
     shp = alphaShape(vert2(:,1),vert2(:,2),vert2(:,3),2);
-    plot(shp,'EdgeColor','g','FaceColor',[0 0 0],'FaceAlpha',0,'LineWidth',1)
+    plot(shp,'EdgeColor','g','FaceColor',[0 1 0],'FaceAlpha',1,'LineWidth',1)
     
     [A_corr,b_corr]=vert2con(vert(K,:));
     % corridor connecting each waypoint polygon 
@@ -686,14 +691,15 @@ Xddot0 = zeros(3,1);
 
 
 % smooth path generation in the corrideor  (TODO)
-[pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,corridor_polygon_seq);
+w_wpnts = 1000000; % weight for waypoint deriving 
+[pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,corridor_polygon_seq,w_wpnts);
 
 % draw path 
 
 for h = 1:H
     subplot(2,2,h)
     hold on
-    [xps, yps, zps]=plot_poly_spline(ts,reshape(pxs,[],1),reshape(pys,[],1),reshape(pzs,[],1));    
+    [xps, yps, zps]=plot_poly_spline(ts,reshape(pxs,[],1),reshape(pys,[],1),reshape(pzs,[],1),'c-');    
     axis equal
 end
 
@@ -714,9 +720,11 @@ draw_box([xl yl zl],[xu yu zu],'k',0.1)
 % this is wrapping of the octomap voxels 
 margin = 0.5*ones (1,3);
 
-for idx = 1:max(IDX)
-    draw_box(boxes{idx}.lower - margin,boxes{idx}.upper + margin,'k',0.6)
-end
+% for idx = 1:max(IDX)
+%     draw_box(boxes{idx}.lower - margin,boxes{idx}.upper + margin,'k',0.6)
+% end
+
+show(map3)
 
 [knot_x,knot_y, knot_z]=plot_poly_spline(ts,reshape(pxs,[],1),reshape(pys,[],1),reshape(pzs,[],1));  
 

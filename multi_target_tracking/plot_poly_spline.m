@@ -1,7 +1,8 @@
 % This function plot the path generated from piecewise polynomial 
 
-function [knot_x,knot_y,knot_z]=plot_poly_spline(Ts,pxs,pys,pzs)
-    
+function [knot_x,knot_y,knot_z]=plot_poly_spline(Ts,pxs,pys,pzs,LineType)
+    % input : Line Type is string - eg) 'g-' , 'b-', 'c-'
+
     knot_x = [];
     knot_y = [];
     knot_z = [];
@@ -47,7 +48,7 @@ function [knot_x,knot_y,knot_z]=plot_poly_spline(Ts,pxs,pys,pzs)
 %     plot3(Xs,Ys,Zs,'rs');
     hold on 
 %     plot3(xs(1:end-1),ys(1:end-1),zs(1:end-1),'g-','LineWidth',4);
-    plot3(xs,ys,zs,'g-','LineWidth',4);
+    plot3(xs,ys,zs,LineType,'LineWidth',4);
 
     plot3(knot_x,knot_y,knot_z,'mo','MarkerSize',8,'MarkerFaceColor','m');
     
