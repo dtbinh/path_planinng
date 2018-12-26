@@ -397,6 +397,7 @@ end
 
 %% Phase 5 : Combination for divided regions 
 
+
 % intersection region of the two polyhydra corresponding to each target
 FOV = 120 * pi/180;
 pruning_vol = 0.2;
@@ -404,6 +405,10 @@ A_div = {};
 b_div = {};
 c_div = {}; % center of each convex polyhedra
 v_div = {}; % convex vertex 
+
+
+
+
 
 vis_cost_set = {};
 Nk = 0; % number of valid regions 
@@ -416,14 +421,12 @@ for h = 1:H
     v_div{h} = {};
     Nk = 0;
     
-    % we reject the blind region 
-    rel_dist = norm([target1_xs(h) target1_ys(h)] - [target2_xs(h) target2_ys(h)]); % distance between the targets  2D plane assumed 
-    blind_height = rel_dist/2/tan(FOV/2);
-    blind_heights = [blind_heights blind_height];
-
     
+    % Firstly, we find blind region of the two targets 
+    [As_no_blind,bs_no_blind,~,~] = no_blind_region(target1,target2,FOV);
     
-    
+   
+       
     for i = 1:length(visi_info_set{1}.cost_set_flat{h})
         for j = 1:length(visi_info_set{2}.cost_set_flat{h})
             
@@ -447,10 +450,11 @@ for h = 1:H
             
                         
             A_bound = [1 0 0; -1 0 0; 0 1 0; 0 -1 0;0 0 1; 0 0 -1];
-            b_bound = [xu ; -xl ; yu ; -yl ; zu ; -(max(target1_zs(h),target2_zs(h))+blind_height)];
+%             b_bound = [xu ; -xl ; yu ; -yl ; zu ; -(max(target1_zs(h),target2_zs(h))+blind_height)];
+            b_bound = [xu ; -xl ; yu ; -yl ; zu ; -zl];
 
-            
-            [~,~,flag]=linprog([],[Ai ; Aj ; A_bound],[bi ; bj ; b_bound]);
+            linprog_options = optimoptions('Display','none');
+            [~,~,flag]=linprog([],[A_intsec; A_bound],[b_intsec ; b_bound],[],[],[],[],[],linprog_options);
             
             
             if (flag ~= -2) % feasibility test pass
@@ -463,32 +467,42 @@ for h = 1:H
                 % can be 2D, which can paralyze the code 
 %                 vertices = con2vert([A_bound;A_intsec ],[b_bound ;b_intsec]); % the vertices of this region   
                 
+               
+               for seg = 1:16
+                   
+                % we investigate if the intersection ([Ai,Aj] , [bi;bj]) belongs to one of no_blind_region    
+                [~,~,no_blind_flag] = linprog([],[A_intsec;A_bound ; As_no_blind{seg}],[b_intsec;b_bound;bs_no_blind{seg}],[],[],[],[],[],llinprog_options) ;  
+                   
+                if  (no_blind_flag ~= -2) 
+                    
+                % let's find vertex to find the volume of the region 
+                
+                    try  
+                        vertices = con2vert([A_bound;A_intsec ],[;b_bound ;b_intsec]); % the vertices of this region   
+                   catch
+                        warning('no vertex could be found')
+                        vertices = [];
+                   end               
+               
+                   if ~isempty(vertices)
 
-               try  
-                    vertices = con2vert([A_bound;A_intsec ],[;b_bound ;b_intsec]); % the vertices of this region   
-               catch
-                    warning('no vertex could be found')
-                    vertices = [];
-               end
-               
-               
-               if ~isempty(vertices)
-               
-                   
-               vertices = vertices + 0.1 * (mean(vertices) - vertices);
-                              
-               % we reject the segment the volume is too small                    
-               shp = alphaShape(vertices(:,1),vertices(:,2),vertices(:,3),20);
-               vol = shp.volume;
-               if vol >= pruning_vol
-                  Nk = Nk + 1;                     
-                   A_div{h}{Nk} = [A_intsec; A_bound];
-                   b_div{h}{Nk} = [b_intsec; b_bound]; 
-                   v_div{h}{Nk} =  vertices;
-                   c_div{h}{Nk} = mean(vertices); % center of each segment                
-                   
-                   vis_cost_set{h}(Nk) =  vis_cost1 + ratio * vis_cost2; % let's assign the visibility cost to here    
-               end 
+                   vertices = vertices + 0.1 * (mean(vertices) - vertices);
+
+                   % we reject the segment the volume is too small                    
+                   shp = alphaShape(vertices(:,1),vertices(:,2),vertices(:,3),20);
+                   vol = shp.volume;
+
+                       if vol >= pruning_vol
+                          Nk = Nk + 1;                     
+                           A_div{h}{Nk} = [A_intsec; A_bound];
+                           b_div{h}{Nk} = [b_intsec; b_bound]; 
+                           v_div{h}{Nk} =  vertices;
+                           c_div{h}{Nk} = mean(vertices); % center of each segment                
+
+                           vis_cost_set{h}(Nk) =  vis_cost1 + ratio * vis_cost2; % let's assign the visibility cost to here    
+                       end
+
+                  end
                
                end
             end % feasibility test pass
@@ -714,15 +728,17 @@ for i = 1: length(knot_x)-1
 
     % we pick the bearing point by equally dividing the angle of v1 and v2 
     
+    target1 = [target1_xs(i) target1_ys(i) target1_zs(i)];
+    target2 = [target2_xs(i) target2_ys(i) target2_zs(i)];
+    seeing_pnt = (norm(v2)*target1 + norm(v1)*target2)/(norm(v1) + norm(v2));
     
     
     
-    
-    % viewing the midpoint does not guarantee FOV constraint 
-    seeing_pnt  = [(target1_xs(i) + target2_xs(i))/2 ...
-        (target1_ys(i) + target2_ys(i))/2 ...
-        (target1_zs(i) + target2_zs(i))/2 ];
-    
+%     % viewing the midpoint does not guarantee FOV constraint 
+%     seeing_pnt  = [(target1_xs(i) + target2_xs(i))/2 ...
+%         (target1_ys(i) + target2_ys(i))/2 ...
+%         (target1_zs(i) + target2_zs(i))/2 ];
+%     
     
     
     xb = seeing_pnt - camera_origin;
