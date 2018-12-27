@@ -28,7 +28,7 @@ function [pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,cor
     zddot0 = Xddot0(3);
         
     n_seg=length(ts)-1; % future step
-    poly_order=6; % for jerk, order 5 is enough 
+    poly_order=8; % for jerk, order 5 is enough 
    
     n_var = (poly_order+1) * n_seg * 3; % length of optimization variables
     
@@ -55,8 +55,9 @@ function [pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,cor
     % let's get virtual waypoints 
     
     for n = 1:n_seg
+        subplot(2,2,n)
         center_polygon = mean(lcon2vert(waypoint_polygon_seq{n}.A,waypoint_polygon_seq{n}.b));
-        scatter3(center_polygon(1),center_polygon(2),center_polygon(3),'b','MarkerFaceColor','b')
+        scatter3(center_polygon(1),center_polygon(2),center_polygon(3),'b','MarkerFaceColor','r')
         xs = [xs center_polygon(1)];
         ys = [ys center_polygon(2)];
         zs= [zs center_polygon(3)];        
@@ -67,6 +68,9 @@ function [pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,cor
     H_wpnt_x=zeros((poly_order+1)*n_seg,1);
     H_wpnt_y=H_wpnt_x;
     H_wpnt_z=H_wpnt_x;
+    
+    x_test = rand(n_var,1);
+    
     
     for n=1:n_seg
         
@@ -83,6 +87,11 @@ function [pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,cor
     end
     
     
+    
+%    score =x_test'*blkdiag( Q_wpnt,Q_wpnt,Q_wpnt) * x_test + [H_wpnt_x; H_wpnt_y; H_wpnt_z]'*x_test +...
+%                 [xs(2:end) ys(2:end) zs(2:end)] *[xs(2:end) ys(2:end) zs(2:end)]' ;
+%    
+%    disp(score) 
     
     
     %% inequality constraint - waypoint polygon 
@@ -223,7 +232,14 @@ function [pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,cor
     H = [H_wpnt_x ; H_wpnt_y ; H_wpnt_z];
 %     sol =quadprog(2*Q,[],Aineq,bineq,Aeq,beq);
      sol =quadprog(2*Q,w_pnts*H,Aineq,bineq,Aeq,beq);
-           
+     
+     
+     cost_jerk = sol'*blkdiag(Q_jerk,Q_jerk,Q_jerk)*sol;
+     cost_wpnt = w_pnts*(sol'*blkdiag( Q_wpnt,Q_wpnt,Q_wpnt) * sol + [H_wpnt_x; H_wpnt_y; H_wpnt_z]'*sol +...
+                [xs(2:end) ys(2:end) zs(2:end)] *[xs(2:end) ys(2:end) zs(2:end)]');
+     
+     fprintf("cost jerk : %f / wpnt : %f\n",cost_jerk,cost_wpnt);
+     
      sol = reshape(sol,3*(poly_order+1),[]);
      
      pxs = sol(1:poly_order+1,:);     

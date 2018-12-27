@@ -1,6 +1,6 @@
 %% MINIMUM JERK TARJECTORY GENERATION (SOFT VERSION : WAYPOINTS INEQ )
 
-function [pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,corridor_polygon_seq)
+function [pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,corridor_polygon_seq,w_pnts)
 
 % INPUT 
 % = [ts,xs] (waypoint and corresponding time) 
@@ -10,6 +10,7 @@ function [pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,cor
 % e.g is N_div = 1, (t_(h-1) + t_(h))/2 is constrained to be insider h th
 % corridor polygon 
     % optimization param = [pX1' pY1' pZ1' ; pX2 pY2 pZ2 ; ...]
+%weight for  waypoints deriving
 
 % OUTPUT 
 % pxs = (poly_order + 1) x n_seg
@@ -45,12 +46,31 @@ function [pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,cor
         Q_jerk((poly_order+1)*(n-1)+1:(poly_order+1)*n,(poly_order+1)*(n-1)+1:(poly_order+1)*n)=Dn*integral_jerk_squared(poly_order)*Dn/dn^5;
     end
     
-        %% soft waypoint cost 
+     %% soft waypoint cost 
+     % in case of waypoint cost, we penalize the deviation from the center
+     % of polygon 
+        
+    xs = X0(1); ys  = X0(2); zs = X0(3);    
+    
+    % let's get virtual waypoints 
+    
+    for n = 1:n_seg
+        subplot(2,2,n)
+        center_polygon = mean(lcon2vert(waypoint_polygon_seq{n}.A,waypoint_polygon_seq{n}.b));
+        scatter3(center_polygon(1),center_polygon(2),center_polygon(3),'b','MarkerFaceColor','r')
+        xs = [xs center_polygon(1)];
+        ys = [ys center_polygon(2)];
+        zs= [zs center_polygon(3)];        
+    end
+    
     
     Q_wpnt=zeros((poly_order+1)*n_seg);
     H_wpnt_x=zeros((poly_order+1)*n_seg,1);
     H_wpnt_y=H_wpnt_x;
     H_wpnt_z=H_wpnt_x;
+    
+    x_test = rand(n_var,1);
+    
     
     for n=1:n_seg
         
@@ -67,6 +87,10 @@ function [pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,cor
     end
     
     
+    
+   score =x_test'*blkdiag( Q_wpnt,Q_wpnt,Q_wpnt) * x_test + [H_wpnt_x; H_wpnt_y; H_wpnt_z]'*x_test + [xs(2:end) ys(2:end) zs(2:end)] * [];
+   
+   disp(score) 
     
     
     %% inequality constraint - waypoint polygon 
@@ -203,11 +227,15 @@ function [pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,cor
     
     %% QP formulation 
     % objective function
-    Q = blkdiag(Q_jerk,Q_jerk,Q_jerk); % jerk matrix
-    
+    Q = blkdiag(Q_jerk,Q_jerk,Q_jerk) + w_pnts * blkdiag(Q_wpnt,Q_wpnt,Q_wpnt); % jerk matrix
+    H = [H_wpnt_x ; H_wpnt_y ; H_wpnt_z];
 %     sol =quadprog(2*Q,[],Aineq,bineq,Aeq,beq);
-     sol =quadprog(2*Q,[],Aineq,bineq,Aeq,beq);
-      
+     sol =quadprog(2*Q,w_pnts*H,Aineq,bineq,Aeq,beq);
+     
+     cost_jerk = sol'*blkdiag(Q_jerk,Q_jerk,Q_jerk)*sol;
+     cost_wpnt = (sol'*blkdiag(Q_wpnt,Q_wpnt,Q_wpnt)*sol + H'*sol)*w_pnts;
+     
+     fprintf("cost jerk : %f / wpnt : %f\n",cost_jerk,cost_wpnt);
      
      sol = reshape(sol,3*(poly_order+1),[]);
      
