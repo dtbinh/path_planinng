@@ -1,0 +1,4 @@
+function [ly,lz] = safe_corridor(pivot1,pivot2)
+    % lx ly lz is 
+
+end

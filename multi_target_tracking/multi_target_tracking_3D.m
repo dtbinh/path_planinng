@@ -684,6 +684,11 @@ for h = 1:H
 end
 
 % save('polygon_seq','waypoint_polygon_seq','corridor_polygon_seq');
+
+%% Phase 8-1: safe corridor generation 
+
+
+
 %% Phase 9: generation of smooth path (currently, the convex hull is assumed to be collision free, additional modification required)
 
 ts= [0 1 2 3 4];
