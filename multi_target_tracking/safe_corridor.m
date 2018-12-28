@@ -1,4 +1,4 @@
-function [vy,vz,ly,lz] = safe_corridor(pivot1,pivot2,max_stride,stride_step)
+function [vy,vz,ly,lz,V] = safe_corridor(pivot1,pivot2,max_stride,stride_step)
     % lx ly lz is the length of local axis     
     % ly,lz <= max_stride 
     
@@ -20,8 +20,10 @@ function [vy,vz,ly,lz] = safe_corridor(pivot1,pivot2,max_stride,stride_step)
 %     hold off
 %     
     expansion_dir = [1 0;0 1;-1 0; 0 -1]; % first col : vy / second col: vz
+    
+    
     for dir_idx = 1:length(expansion_dir)
- 
+        
     end
     
    
