@@ -6,7 +6,7 @@ function res=occupancy_rect_check(map3,rect_center,R_rect,geo_rect)
     ly = geo_rect(2);
     lz = geo_rect(3);
     
-    [ly_mesh,lz_mesh] = meshgrid()
+    for ly_mesh = -l
     
     
     
