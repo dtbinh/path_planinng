@@ -18,37 +18,42 @@ for h = 1:H
     % 3D version 
     waypoint_polygon_seq{h}.A = [A_div{h}{idx_seq(h)}];
     waypoint_polygon_seq{h}.b =[b_div{h}{idx_seq(h)}];
-               
+    % caution 
+    % size(vert) = N x 3
     if h ==1 
         vert1 = tracker';
     else
         vert1 = v_div{h-1}{idx_seq(h-1)};        
-    end
-    
-    Nk1 = size(vert1,1);
-    Nk2 = size(vert2,1);
-    
+    end    
     vert2 = v_div{h}{idx_seq(h)};    
     vert = [vert1 ; vert2];       
-    K = convhull(vert(:,1), vert(:,2),vert(:,3),'simplify', true);    
-          
+    K = convhull(vert(:,1), vert(:,2),vert(:,3));    
     shp = alphaShape(vert2(:,1),vert2(:,2),vert2(:,3),2);
     plot(shp,'EdgeColor','g','FaceColor',[0 1 0],'FaceAlpha',0.5,'LineWidth',1)
     
-    % This draw a connecting convex hull 
     shp_aug = alphaShape(vert(K,1),vert(K,2),vert(K,3),100);
+    % polygon hull 
     plot(shp_aug,'EdgeColor','none','FaceColor',[0 0 0],'FaceAlpha',0.5,'LineWidth',1,'MarkerEdgeColor','none')
     
-    % identify the owener of each point in convex hull (does it belong to vert1 or vert2?)
+     % identify the owener of each point in convex hull (does it belong to vert1 or vert2?)
     K_conv=unique(reshape(K,1,[])); % indices of vertex which is not insider 
     
-    K_conv1=intersect(K_conv,1:Nk1);
+    K_conv1=intersect(K_conv,1:size(vert1,1));
     K_conv2=setdiff(K_conv,K_conv1);
     
     conv_vert1 = vert(K_conv1,:);
     conv_vert2 = vert(K_conv2,:);
-    
+    max_V = 0;
     % nextly, we enumerate the combination(pair) of convex vertecies 
+    
+    %%%%% corridor parameters         
+    line_ckp = 10; % we will check 10 pnts on the line segment 
+    max_strider_ly_lz = 5; % max stride dimension in ly lz direction 
+    max_stride_step = 4; % number of step in ly lz direction 
+    %%%%
+    
+    done_f
+     
     for K_conv1_idx = K_conv1
         for K_conv2_idx = K_conv2
             % here is where the expansion comes in 
@@ -56,14 +61,24 @@ for h = 1:H
             pivot2 = vert(K_conv2_idx,:);
             % first check if this line segment is free 
             line = [pivot1 ; pivot2]; % 2 x 3 
-            
-%             plot3(line(:,1),line(:,2),line(:,3),'m-')
-            
+            % this gurantees the safety of line segment 
+            if ~occupancy_line_check(map3,line(1,:),line(2,:),line_ckp)
+                % let's find box expansion 
+                rect= safe_corridor(map3, pivot1,pivot2,max_strider_ly_lz,max_stride_step);
+                % check if this safe corridor is larget enough 
+                if rect.V >= max_V 
+                    max_V = rect.V;
+                    max_rect = rect;
+                end                
+                
+            end
+%             plot3(line(:,1),line(:,2),line(:,3),'m-')            
         end
     end
     
     
-
+    draw_box_new(max_rect.center,max_rect.R,max_rect.geo,'b',0.3)
+    
     
     [A_corr,b_corr]=vert2con(vert(K,:));
     % corridor connecting each waypoint polygon 
@@ -78,9 +93,15 @@ end
 
 % save('polygon_seq','waypoint_polygon_seq','corridor_polygon_seq');
 
-%% Phase 8-1 
-
-
+%% Phase 8-1 safety corridor generation 
+hh=show(map3);
+axes = [hh.XLim hh.YLim hh.ZLim];
+corridor=safe_corridor(map3,[4 1 1],[3 6 2],3,5);
+draw_box_new(corridor.center,corridor.R,corridor.geo,'g',0.5)
+hold on
+axis(axes);
+axis equal
+hold off
 
 
 

@@ -1,4 +1,4 @@
-function [vy,vz,ly,lz,V] = safe_corridor(map3,pivot1,pivot2,max_stride,N_stride)
+function rect = safe_corridor(map3,pivot1,pivot2,max_stride,N_stride)
     % lx ly lz is the length of local axis     
     % ly,lz <= max_stride 
     
@@ -41,8 +41,8 @@ function [vy,vz,ly,lz,V] = safe_corridor(map3,pivot1,pivot2,max_stride,N_stride)
 
     %%
     hold on 
-    scatter3(pivot1(1),pivot1(2),pivot1(3),'ro');
-    scatter3(pivot2(1),pivot2(2),pivot2(3),'ro');
+%     scatter3(pivot1(1),pivot1(2),pivot1(3),'ro');
+%     scatter3(pivot2(1),pivot2(2),pivot2(3),'ro');
     
     
     while ~isempty(allowable_dir_idx)  % until maixmally expandable         
@@ -55,13 +55,18 @@ function [vy,vz,ly,lz,V] = safe_corridor(map3,pivot1,pivot2,max_stride,N_stride)
                         vy*(expansion_rect(1) + expansion_rect(2))/2 +...
                         vz*(expansion_rect(3) + expansion_rect(4))/2,...
                         R_rect,...
-                        [lx/2 (expansion_rect(1) - expansion_rect(2))/2 (expansion_rect(3) - expansion_rect(4))/2],true)
+                        [lx/2 (expansion_rect(1) - expansion_rect(2))/2 (expansion_rect(3) - expansion_rect(4))/2],false)
                     % if the rect hit in this direction,we reject this
                     % direction 
                     allowable_dir_idx=setdiff(allowable_dir_idx,dir_idx);
                 else
                   cur_ly_lz = expansion_rect;  
-                  draw_box_new((pivot1+pivot2)/2,R_rect,[lx/2 cur_ly_lz],'g',0.5);
+                  
+                  box_center = (pivot1+pivot2)/2 +  vy*(expansion_rect(1) + expansion_rect(2))/2 +...
+                        vz*(expansion_rect(3) + expansion_rect(4))/2;
+                  box_dim =   [lx/2 (expansion_rect(1) - expansion_rect(2))/2 (expansion_rect(3) - expansion_rect(4))/2];
+                  
+%                   draw_box_new(box_center,R_rect,box_dim,'g',0.5);
                   already_stride_step(dir_idx) = already_stride_step(dir_idx) + 1;
                   
                   if already_stride_step(dir_idx) == N_stride 
@@ -74,7 +79,12 @@ function [vy,vz,ly,lz,V] = safe_corridor(map3,pivot1,pivot2,max_stride,N_stride)
         end
     end
 %     hold off
-    ly = cur_ly_lz(1); lz = cur_ly_lz(2); V = lx*ly*lz*8;
+    rect_center = (pivot1+pivot2)/2 +  vy*(cur_ly_lz(1) + cur_ly_lz(2))/2 + vz*(cur_ly_lz(3) + cur_ly_lz(4))/2;
+    rect_geo =  [lx/2 (cur_ly_lz(1) - cur_ly_lz(2))/2 (cur_ly_lz(3) - cur_ly_lz(4))/2];
     
-  
+    rect.center = rect_center;
+    rect.geo = rect_geo;
+    rect.R = R_rect;
+    rect.V = rect_geo(1)*rect_geo(2)*rect_geo(3)*8;
+    
 end
