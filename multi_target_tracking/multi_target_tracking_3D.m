@@ -43,8 +43,12 @@ figure
 PlotClusterinResult(occ_cells,IDX)
 
 % Height setting is specific for map settings
-heights = [2,0.2, 5];
-heights_start = [0 2 0];
+
+% heights = [2,0.2, 5];
+% heights_start = [0 2 0];
+heights = [2, 5];
+heights_start = [0 0];
+
 
 % Construct 3D map from 2D ground plan 
 map3 = robotics.OccupancyMap3D(map.Resolution);
@@ -75,6 +79,8 @@ if ~isempty(pcl)
 end
 figure
 show(map3)
+axis vis3d off
+
 axis equal
 hold on 
 N_target = 2; % only two targets will be considered
@@ -521,6 +527,8 @@ for h =1 :H
     subplot(2,H/2,h)                
         
         show(map3)
+        axis vis3d off
+
         hold on 
         plot3(target1_xs,target1_ys,target1_zs,'r^-','LineWidth',2)
        
@@ -582,8 +590,15 @@ node2_list = {};
 weight_list = [];
 edge_cnt = 0;
 
+
+
+
+
 for h = 1:H
         % phase1 : add node at this future step
+        
+        
+        
         node_name_array{h+1} = {};
 
         for name_idx  = 1:length(vis_cost_set{h})
@@ -630,8 +645,10 @@ end
 Astar_G=Astar_G.addedge(node1_list,node2_list, (weight_list));
 [path_idx,total_cost]=Astar_G.shortestpath('t0n1','xf','Method','auto');
 %% Phase 8 : plotting the planned path of polyhedron 
-
+figure
 hold on 
+show(map3)
+axis vis3d off
 idx_seq = [];
 for pnt_idx = path_idx
     pnt_idx_convert=cell2mat(pnt_idx);
@@ -646,10 +663,22 @@ corridor_polygon_seq = {};
 
 
 for h = 1:H    
-    subplot(2,2,h)
+%     subplot(2,2,h)
      if h == 1 
             plot3(tracker(1),tracker(2),tracker(3),'mo','MarkerFaceColor','m')
      end
+     
+%         hold on 
+%         plot3(target1_xs,target1_ys,target1_zs,'r^-','LineWidth',2)
+%        
+%         plot3(target1_xs(h),target1_ys(h),target1_zs(h),'rs','LineWidth',3,'MarkerSize',10)
+% 
+%         plot3(target2_xs,target2_ys,target2_zs,'r^-','LineWidth',2)
+%         
+%         plot3(target2_xs(h),target2_ys(h),target2_zs(h),'rs','LineWidth',3,'MarkerSize',10)
+% 
+%         plot3(tracker(1),tracker(2),tracker(3),'mo','MarkerFaceColor','m')
+     
      
     plotregion(-A_div{h}{idx_seq(h)} ,-b_div{h}{idx_seq(h)} ,[xl yl zl]',[xu yu zu]',[1,0,1],0);
     hold on
@@ -670,7 +699,7 @@ for h = 1:H
     vert = [vert1 ; vert2];       
     K = convhull(vert(:,1), vert(:,2),vert(:,3));    
     shp = alphaShape(vert2(:,1),vert2(:,2),vert2(:,3),2);
-    plot(shp,'EdgeColor','g','FaceColor',[0 1 0],'FaceAlpha',0.5,'LineWidth',1)
+    plot(shp,'EdgeColor','m','FaceColor',[1 0 1],'FaceAlpha',0.5,'LineWidth',1)
     
     [A_corr,b_corr]=vert2con(vert(K,:));
     % corridor connecting each waypoint polygon 
@@ -697,15 +726,15 @@ X0 = [tracker];
 Xdot0 = zeros(3,1);
 Xddot0 = zeros(3,1);
 
-figure
+% figure
 
 % smooth path generation in the corrideor  (TODO)
-w_wpnts =100; % weight for waypoint deriving 
+w_wpnts =0; % weight for waypoint deriving 
 [pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,corridor_polygon_seq,w_wpnts);
 
 % draw path 
 for h = 1:H
-    subplot(2,2,h)
+%     subplot(2,2,h)
     hold on
     [xps, yps, zps]=plot_poly_spline(ts,reshape(pxs,[],1),reshape(pys,[],1),reshape(pzs,[],1),'c-');    
     axis equal
@@ -722,8 +751,7 @@ hold on
 plot3(target1_xs,target1_ys,target1_zs,'r^-','LineWidth',2)
 plot3(target2_xs,target2_ys,target2_zs,'r^-','LineWidth',2)
 plot3(tracker(1),tracker(2),2,'mo','MarkerFaceColor','m')
-axis([xl  xu yl yu zl zu])
-draw_box([xl yl zl],[xu yu zu],'k',0.1)
+draw_box([xl yl zl],[xu yu zu],'k',0.)
 
 % this is wrapping of the octomap voxels 
 margin = 0.5*ones (1,3);
@@ -733,8 +761,9 @@ margin = 0.5*ones (1,3);
 % end
 
 show(map3)
+axis([xl  xu yl yu zl zu])
 
-[knot_x,knot_y, knot_z]=plot_poly_spline(ts,reshape(pxs,[],1),reshape(pys,[],1),reshape(pzs,[],1));  
+[knot_x,knot_y, knot_z]=plot_poly_spline(ts,reshape(pxs,[],1),reshape(pys,[],1),reshape(pzs,[],1),'c-');  
 
 % draw camera  
 for i = 1: length(knot_x)-1
@@ -788,6 +817,8 @@ for i = 1: length(knot_x)-1
     plot3(proj_img_plane(1),proj_img_plane(2),proj_img_plane(3),'r*')
 
 end
+axis([xl  xu yl yu zl zu])
+
 axis equal
 
 

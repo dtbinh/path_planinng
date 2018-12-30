@@ -48,7 +48,12 @@ end
 
 % save('polygon_seq','waypoint_polygon_seq','corridor_polygon_seq');
 
-%% Phase 9
+%% Phase 8-1 safety corridor generation 
+hh=show(map3);
+axes = [hh.XLim hh.YLim hh.ZLim];
+safe_corridor(map3,[4 1 1],[3 6 2],3,5)
+hold on
+axis(axes);
 
 
 

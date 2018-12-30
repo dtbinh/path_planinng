@@ -1,10 +1,20 @@
-function [vy,vz,ly,lz,V] = safe_corridor(pivot1,pivot2,max_stride,stride_step)
+function [vy,vz,ly,lz,V] = safe_corridor(map3,pivot1,pivot2,max_stride,N_stride)
     % lx ly lz is the length of local axis     
     % ly,lz <= max_stride 
     
+   pivot1 = reshape(pivot1,3,[]);
+   pivot2 = reshape(pivot2,3,[]);
+   
+      
     vx = (pivot2 - pivot1); vx = vx/norm(vx);
-    vy = [-vx(2) vx(1) 0]; vy = vy/norm(vy);
+    % actually, we could have used another direction of vy 
+    vy = [-vx(2) vx(1) 0]'; vy = vy/norm(vy);
     vz = cross(vx,vy);
+    
+    lx = norm(pivot1-pivot2);
+    
+    
+    R_rect = [vx vy vz];
     
     % let's check by drawing 
 %     hold on 
@@ -19,18 +29,52 @@ function [vy,vz,ly,lz,V] = safe_corridor(pivot1,pivot2,max_stride,stride_step)
 %     
 %     hold off
 %     
-    expansion_dir = [1 0;0 1;-1 0; 0 -1]; % first col : vy / second col: vz
-    
-    
-    for dir_idx = 1:length(expansion_dir)
-        
-    end
-    
-   
-    
-    
-    
-    
+    expansion_dir = [1 0 0 0;...
+                             0 -1 0 0;...
+                             0 0 1 0;...
+                             0  0 0 -1]; 
+    allowable_dir_idx = 1:length(expansion_dir); % this direction okay 
+    cur_ly_lz = [0 0 0 0]; % ly pos / neg  , lz pos / neg
+    stride_step = max_stride/N_stride;
+    already_stride_step = [0 0 0 0]; 
     
 
+    %%
+    hold on 
+    scatter3(pivot1(1),pivot1(2),pivot1(3),'ro');
+    scatter3(pivot2(1),pivot2(2),pivot2(3),'ro');
+    
+    
+    while ~isempty(allowable_dir_idx)  % until maixmally expandable         
+        for dir_idx = allowable_dir_idx 
+            if ((already_stride_step(dir_idx) <= N_stride))
+                expansion_rect = cur_ly_lz + expansion_dir(dir_idx,:)*stride_step;
+                % it is very insufficient to always check in rectangle manner
+                % (we can just check for only the inspection line added but... annoying)
+                if occupancy_rect_check(map3,(pivot1+pivot2)/2 +...
+                        vy*(expansion_rect(1) + expansion_rect(2))/2 +...
+                        vz*(expansion_rect(3) + expansion_rect(4))/2,...
+                        R_rect,...
+                        [lx/2 (expansion_rect(1) - expansion_rect(2))/2 (expansion_rect(3) - expansion_rect(4))/2],true)
+                    % if the rect hit in this direction,we reject this
+                    % direction 
+                    allowable_dir_idx=setdiff(allowable_dir_idx,dir_idx);
+                else
+                  cur_ly_lz = expansion_rect;  
+                  draw_box_new((pivot1+pivot2)/2,R_rect,[lx/2 cur_ly_lz],'g',0.5);
+                  already_stride_step(dir_idx) = already_stride_step(dir_idx) + 1;
+                  
+                  if already_stride_step(dir_idx) == N_stride 
+                      % if this direction reached full N_stride 
+                      allowable_dir_idx = setdiff(allowable_dir_idx,dir_idx);
+                  end
+                  
+                end
+            end
+        end
+    end
+%     hold off
+    ly = cur_ly_lz(1); lz = cur_ly_lz(2); V = lx*ly*lz*8;
+    
+  
 end

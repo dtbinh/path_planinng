@@ -55,9 +55,9 @@ function [pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,cor
     % let's get virtual waypoints 
     
     for n = 1:n_seg
-        subplot(2,2,n)
+%         subplot(2,2,n)
         center_polygon = mean(lcon2vert(waypoint_polygon_seq{n}.A,waypoint_polygon_seq{n}.b));
-        scatter3(center_polygon(1),center_polygon(2),center_polygon(3),'b','MarkerFaceColor','r')
+%         scatter3(center_polygon(1),center_polygon(2),center_polygon(3),'b','MarkerFaceColor','r')
         xs = [xs center_polygon(1)];
         ys = [ys center_polygon(2)];
         zs= [zs center_polygon(3)];        

@@ -16,8 +16,8 @@ show(map);
 % [target1_xs,target1_ys,target2_xs,target2_ys,tracker]=set_target_tracker2; % assign path of two targets and tracker
 
 % packing the target paths (should be same length)
-targets_xs = [target1_xs ; target2_xs];
-targets_ys = [target1_ys ; target2_ys];
+% targets_xs = [target1_xs ; target2_xs];
+% targets_ys = [target1_ys ; target2_ys];
 
 %% 
 N_target = 2; % only two targets will be considered
@@ -295,7 +295,7 @@ for h =1 :H
         
     for k = 1:length(vis_cost_set{h})                
         alpha = 1/vis_cost_set{h}{k};     % this might be inf    
-        [r,g,b]  = getRGB(vis_cost_set{h}{k},10,1);
+        [r,g,b]  = getRGB(vis_cost_set{h}{k},0,10,1);
         plotregion(-A_div{h}{k} ,-b_div{h}{k} ,[xl yl]',[xu yu]',[r,g,b],alpha);
         plot(c_div{h}{k}(1),c_div{h}{k}(2),'ks','MarkerSize',1.5,'MarkerFaceColor','k');
     end

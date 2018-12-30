@@ -49,9 +49,9 @@ function [knot_x,knot_y,knot_z]=plot_poly_spline(Ts,pxs,pys,pzs,LineType)
     hold on 
 %     plot3(xs(1:end-1),ys(1:end-1),zs(1:end-1),'g-','LineWidth',4);
     plot3(xs,ys,zs,LineType,'LineWidth',4);
-
-    plot3(knot_x,knot_y,knot_z,'mo','MarkerSize',8,'MarkerFaceColor','m');
-    
+% 
+%     plot3(knot_x,knot_y,knot_z,'mo','MarkerSize',8,'MarkerFaceColor','m');
+%     
 %     subplot(3,2,2)
 %     plot(ts,xs)
 %     
