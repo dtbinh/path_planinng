@@ -501,6 +501,9 @@ for h = 1:H
 
                    % we reject the segment the volume is too small                    
                    shp = alphaShape(vertices(:,1),vertices(:,2),vertices(:,3),20);
+                    shp = alphaShape(v_div{1}{1}(:,1),v_div{1}{1}(:,2),v_div{1}{1}(:,3),20);
+                    shp.volume
+
                    vol = shp.volume;
 
                        if vol >= pruning_vol
