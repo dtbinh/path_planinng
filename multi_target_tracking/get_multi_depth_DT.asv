@@ -17,7 +17,7 @@ function [DT_set,pinch_bin] = get_multi_depth_DT(map3,ray_origin,azim_set,elev_s
     
     % do you need plot (in new figure) ?
     if raycast_plot
-        fig_h=plot_raycast(map3,ray_origin,hit_dist,azim_set,elev_set,'k-',0.2,1)
+        plot_raycast(map3,ray_origin,hit_dist,azim_set,elev_set,'k-',0.2,1)
 %         plot_raycast(map3,ray_origin,hit_dist(:,1),azim_set,elev_set(1),'k-',0.2,1) % 2D version 
     end
     
@@ -39,28 +39,15 @@ function [DT_set,pinch_bin] = get_multi_depth_DT(map3,ray_origin,azim_set,elev_s
       hold on
       title('hit distance')
       stem(azim_set,hit_dist(:,1),'k-');
-      plot([0 azim_set(end)],[max_ray max_ray],'g--')
+      plot([0 azim_set(end)],[max_ray max_ray],'r--')
       xlabel('azimuth')
       ylabel('hit distance')
       PlotClusterinResult([azim_set' hit_dist(:,1)],IDX_back(:,1));
-      Color = hsv(max(IDX_back(:,1)));
-       hold on
-       pinch_bin_draw = [];
-      for idx =1:max(IDX_back(:,1))
+      for idx = IDX_back(:,1)
             cluster_idx = find(IDX_back(:,1)==idx);
-            cut_dist = 0.7*max(hit_dist(cluster_idx,1)) + 0.3*min(hit_dist(cluster_idx,1));    
-            pinch_bin_draw = [pinch_bin_draw cut_dist];
-            plot([0 azim_set(end)],[cut_dist cut_dist],'Color',Color(idx,:),'LineStyle','--')
+            cut_dist = hit_dist(:,1)
       end
       axis([0 azim_set(end) 0 max_ray+2])
-      
-      figure(fig_h);
-      hold on 
-      
-      for pinchh = 1:max(IDX_back(:,1))
-        draw_circle([ray_origin(1) ray_origin(2)],pinch_bin_draw(pinchh),[0 0 0],0,Color(pinchh,:));       
-      end
-      hold off
    end
    if max(IDX) == 1
     warning('clusterring warning : clustered altogether');

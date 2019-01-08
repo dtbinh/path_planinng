@@ -1,115 +1,38 @@
 %% Description
 % this code simulates a scenario. 
 
-addpath('..\ASAP1','.\','..\plotregion\');
-addpath('..\STOMP\')
-addpath('..\intercept\') % for Rplot and proj_image
-addpath('polytopes_2017_10_04_v1.9\')
-
-%% Phase1 : Map setting in 2D projection space
-
-map_dim = 30;
-lx = 10; ly = 10; % size of map in real coordinate 
-res = lx / map_dim;
-
-
-% this is problem settings block 
-%%%%%%%%%%%%
-figure
-hold on 
-custom_map=makemap(map_dim); % draw obstacle interactively
-% load('problem_settings.mat')
-% tracker = [1.4 1.4 2.0]';
-
-% Generate map occupancy grid object and path of the two targets
-map = robotics.OccupancyGrid(flipud(custom_map),1/res);
-show(map);
-[target1_xs,target1_ys,target2_xs,target2_ys,tracker]=set_target_tracker2; % assign path of two targets and tracker
-%%%%%%%%%%%%
-
-%% 
-% packing the target paths (should be same length)
+addpath('..\..\ASAP1','.\','..\..\plotregion\');
+addpath('..\..\STOMP\')
+addpath('..\..\intercept\') % for Rplot and proj_image
+addpath('..\polytopes_2017_10_04_v1.9\')
+load('..\map2\map2_solution.mat' )
+addpath('..\')
 targets_xs = [target1_xs ; target2_xs];
 targets_ys = [target1_ys ; target2_ys];
 
+% Please do not modify Phase 2- X 
 
-% Clustering and give height for each obstacle 
-epsilon=1; % neihbor hood bound 
-MinPts=5; % minimum grouping index 
-[occ_rows,occ_cols] = find(map.occupancyMatrix >= map.OccupiedThreshold);
-occ_cells= [occ_rows occ_cols];
-IDX=DBSCAN(occ_cells,epsilon,MinPts);
-figure
-PlotClusterinResult(occ_cells,IDX)
-
-% Height setting is specific for map settings
-
-% heights = [2,0.2, 5];
-% heights_start = [0 2 0];
-heights = [2, 5];
-heights_start = [0 0];
-
-
-% Construct 3D map from 2D ground plan 
-map3 = robotics.OccupancyMap3D(map.Resolution);
-res = map.Resolution;
-
-boxes = {};
-
-pcl = []; % should be N x 3
-for idx = 1:max(IDX)
-    xy_pnts=map.grid2world(occ_cells(find(IDX==idx),:));
-    
-    boxes{idx}.lower = [min(xy_pnts) 0];
-    boxes{idx}.upper = [max(xy_pnts) heights(idx)];
-    
-    for r = 1:size(xy_pnts,1)
-            zs = heights_start(idx) + (0:1/res/2:heights(idx));
-            for z = zs                
-                % point cloud append 
-                pcl = [pcl ; [xy_pnts(r,:) z]] ;               
-            end
-    end              
-end
-
-pcl_origin_pose = [ 0 0 0  1 0 0 0];  
-max_range = 20;
-if ~isempty(pcl) 
-    map3.insertPointCloud(pcl_origin_pose,pcl,max_range);
-end
-figure
-show(map3)
-axis vis3d off
-
-axis equal
-hold on 
-N_target = 2; % only two targets will be considered
-
-% path of each target 
-target1_xs = targets_xs(1,:); target1_ys = targets_ys(1,:);  targets_zs(1,:) = 0.5*ones(1,length(target1_xs));
-target2_xs  = targets_xs(2,:); target2_ys = targets_ys(2,:); targets_zs(2,:) = 0.5*ones(1,length(target1_xs));
-
-plot(target1_xs,target1_ys,'r^-','LineWidth',2)
-plot(target2_xs,target2_ys,'r^-','LineWidth',2)
-plot(tracker(1),tracker(2),'mo','MarkerFaceColor',[1 0 1],'MarkerSize',3)
-
-vis_cost_sets = {};
-hold off 
 %% Phase2: Get score maps and inequality condition set of each target during a prediction horizon
 
 % parameter for observation 
-d_ref = 2;
-N_azim = [40,40];
-N_elev = [20, 20];
+N_azim = [60,60];
+N_elev = [2, 2];
 
 % parameter for sub-division             
 N_rect = 10; r_max_stride = 5; % caution: should not be bigger than N_azim/4
 c_max_stride = 6; stride_res = 1;                
 
+% parameters for tracking 
+d_ref = 3.5; 
+max_ray = 6; % maximum allowable tracking distance 
+min_ray =0.6; % minmum tracking distacne 
+
+
+
 % visi info 
 visi_info_set = {}; % idx = 1 : target1 / idx =2 : target2
 
-for n = 1:N_target 
+for n = 1:2
     target_xs = targets_xs(n,:);
     target_ys = targets_ys(n,:);
     target_zs = targets_zs(n,:);
@@ -136,6 +59,7 @@ for n = 1:N_target
         else % other agent will be 1            
             other_agent_loc = [targets_xs(1,t) targets_ys(1,t) 1] ;
         end
+        
                 
         map3_h = copy(map3); % map3 object considering the presence of other agent 
 
@@ -170,15 +94,22 @@ for n = 1:N_target
         azim_set = azim_set(1:end-1);
         
         elev_max = 4*pi/9; elev_min=pi/18;
-        elev_set = linspace(elev_min,elev_max,N_elev(n));
+%         elev_set = linspace(elev_min,elev_max,N_elev(n));
+        elev_set = [pi/6-0.1,pi/6+0.1];
         
-        max_ray = 6; % maximum allowable tracking distance 
-        min_ray =2; % minmum tracking distacne 
+
+        ray_cast_res = 1/res/2;  % ray cast stride distance 
+        clustering_delta_r = 1/res * 2; % threshold for neigborhood-ness for hit distance 
         
-        ray_cast_res = 1/res;  % ray cast stride distance 
-        clustering_delta_r = 1/res; % threshold for neigborhood-ness for hit distance 
+        if t == 2
+%             input("stop!")
+            raycast_plot = true;
+        else
+            raycast_plot = false;
+        end
         
-        [DT_set, pinch_bin]=get_multi_depth_DT(map3_h,[target_xs(t) target_ys(t) target_zs(t)],azim_set,elev_set,max_ray,ray_cast_res,clustering_delta_r);
+        [DT_set, pinch_bin]=get_multi_depth_DT(map3_h,[target_xs(t) target_ys(t) target_zs(t)],...
+            azim_set,elev_set,max_ray,min_ray,ray_cast_res,clustering_delta_r,raycast_plot);
         % DT set update 
                 
         % let's save the pinching process                         
@@ -189,7 +120,7 @@ for n = 1:N_target
         title_tot = sprintf('%d th target in %d time step',n,t);
         sgtitle(title_tot)
         
-        pinch_bin = [0 pinch_bin];
+        pinch_bin = [min_ray pinch_bin];
         
         Nk = 0; % polyhedron indexing 
 
@@ -220,9 +151,8 @@ for n = 1:N_target
                     end
                 end
                 
-                plot_DT_rectDiv(10*ones(size(DT,1),size(DT,2)),rects); % in case of no hit.. just plane white for DT 
-                
-                
+                plot_DT_rectDiv(10*ones(size(DT,1),size(DT,2)),rects); % in case of no hit.. just plane white for DT                 
+               
             else % if there's hit 
                 rects = rectDiv(DT,N_rect,r_max_stride,c_max_stride,stride_res);                    
                 
@@ -355,7 +285,7 @@ for n = 1: N_target
             hold on 
             % draw the target 
             if n == 1
-                plot3(target1_xs,target1_ys,target1_zs,'r^-','LineWidth',2)
+                plot3(target1_xs,target1_ys,target1_zs,'k^-','LineWidth',2)
             else
                 plot3(target2_xs,target2_ys,target2_zs,'r^-','LineWidth',2)
             end
@@ -390,12 +320,12 @@ for n = 1: N_target
                     if alpha == inf
                         alpha = max_val;
                     end                    
-                    if min_val == max_val % this can happen if they are same (in many cases where small rect set)
+                      if min_val == max_val % this can happen if they are same (in many cases where small rect set)
                         r = 1; g = 0; b = 0;
                     else
                         [r,g,b]=getRGB(alpha,min_val,max_val,1);
                         plotregion(-visi_info_set{n}.A_set{h}{p}{s},-visi_info_set{n}.b_set{h}{p}{s},[xl yl zl],[xu yu zu],[r g b],0.3);              
-                    end
+                     end
                 end
             end
             
@@ -407,8 +337,6 @@ for n = 1: N_target
 end
 
 
-
-
 %% Phase 5 : Combination for divided regions 
 
 % intersection region of the two polyhydra corresponding to each target
@@ -418,6 +346,7 @@ A_div = {};
 b_div = {};
 c_div = {}; % center of each convex polyhedra
 v_div = {}; % convex vertex 
+d_dev_div = {}; % distance deviation
 
 
 
@@ -513,7 +442,11 @@ for h = 1:H
                            b_div{h}{Nk} = [b_intsec; b_bound ; bs_no_blind{seg}]; 
                            v_div{h}{Nk} =  vertices;
                            c_div{h}{Nk} = mean(vertices); % center of each segment                
-                           vis_cost_set{h}(Nk) =  vis_cost1 + ratio * vis_cost2; % let's assign the visibility cost to here    
+                           vis_cost_set{h}(Nk) =  vis_cost1 + ratio * vis_cost2; % let's assign the visibility cost to here   
+                            d_ref = 3.5;
+                           d_dev1 = abs(d_ref - norm((c_div{h}{Nk} - [target1_xs(h),target1_ys(h),target1_zs(h)'])));
+                           d_dev2 = abs(d_ref - norm((c_div{h}{Nk} - [target2_xs(h),target2_ys(h),target2_zs(h)'])));
+                           d_dev_div{h}(Nk) = d_dev1 + d_dev2;
                        end
 
                    end % vertex test
@@ -524,6 +457,8 @@ for h = 1:H
         end        
     end
 end
+
+
 %% Phase 6: plot faesible segment
 
 figure
@@ -574,261 +509,192 @@ for h =1 :H
         axis equal
         
 end
-%% Phase 7: Astar for the path of region segmentsd
 
-node_name_array = {}; %string -> this will be used in matalb graph library 
-node_idx_array={}; % segment index (what time? and what (A,b)?)
+%% FIGURE GEN 1 - 따로 따로
 
-name_vec = {'t0n1'};
-loc_vec = tracker;
-node_name_array{1} = name_vec; % initialize the node name array
+h_drawing = 3;
 
-w_v = 50; % visibility weight for optimization 
-w_d = 1; % weight for desired distance 
-d_max = 5; % allowable connecting distane btw "center of region"
-Astar_G = digraph();
+for n = 1: N_target         
+      figure
+      title_tot = sprintf('%d th target',n);
+        % only for H = 4
 
-% for update egde only once at the final phase 
-node1_list = {};
-node2_list = {};
-weight_list = [];
-edge_cnt = 0;
+        for h = h_drawing
+            show(map);
+            title(title_tot)
+            xlabel('')
+            ylabel('')
+            hold on 
+            % draw the target 
+            
+            
+            if n == 1
+                plot3(target1_xs,target1_ys,target1_zs,'r^--','LineWidth',2)
+                plot3(target1_xs(h),target1_ys(h),target1_zs(h),'r^','LineWidth',4,'MarkerEdgeColor','m')
+                hhh=plot3(target2_xs,target2_ys,target1_zs,'k^--','LineWidth',2);
+                plot3(target2_xs(h),target2_ys(h),target2_zs(h),'k^','LineWidth',4,'MarkerEdgeColor','k')
+                hhh.Color(4) = 0.2;
+            else
+                plot3(target2_xs,target2_ys,target2_zs,'r^--','LineWidth',2)
+                plot3(target2_xs(h),target2_ys(h),target2_zs(h),'r^','LineWidth',4,'MarkerEdgeColor','m')
+                hhh=plot3(target1_xs,target1_ys,target1_zs,'k^--','LineWidth',2);
+                plot3(target1_xs(h),target1_ys(h),target1_zs(h),'k^','LineWidth',4,'MarkerEdgeColor','k')
+                hhh.Color(4) = 0.2;
+            end
+            
 
+            
+            % for pinch 
+            for p = 1:length(visi_info_set{n}.A_set{h})
 
-
-
-
-for h = 1:H
-        % phase1 : add node at this future step
-        
-        
-        
-        node_name_array{h+1} = {};
-
-        for name_idx  = 1:length(vis_cost_set{h})
-            node_name_array{h+1}{name_idx}  = strcat('t',num2str(h),'n',num2str(name_idx));
-        end
-        
-        Astar_G=Astar_G.addnode(node_name_array{h+1});    
-        cur_target_pos = [target_xs(h) ; target_ys(h)];     % target position at this time step 
-        
-        % phase2: connect edges with previus layer
-        for idx1 = 1:length(node_name_array{h}) % previous step
-            for idx2 = 1:length(node_name_array{h+1}) % current step                
-                % would-be node 
-                cur_observ_pnt = c_div{h}{idx2};                 
-                if h ~= 1
-                    prev_observ_pnt= c_div{h-1}{idx1};
-                else
-                    prev_observ_pnt = tracker;
+                           % let's secure the max value excluding the inf value
+            min_val = 1000;
+            max_val = 0;            
+ 
+                % for rect segment in the pinch 
+                for s = 1:length(visi_info_set{n}.A_set{h}{p}) 
+                    cur_score_vec = 1./visi_info_set{n}.cost_set{h}{p};
+                    % we clamping the inf maximum value with non-inf maximum
+                    cur_pinch_min=min(cur_score_vec(cur_score_vec ~= inf));    
+                    cur_pinch_max = max(cur_score_vec(cur_score_vec ~= inf));                    
+                    if min_val > cur_pinch_min
+                        min_val=cur_pinch_min;
+                    end
+                    if max_val < cur_pinch_max
+                        max_val = cur_pinch_max;
+                    end                    
                 end
-                travel_distance = norm([prev_observ_pnt(1) - cur_observ_pnt(1),prev_observ_pnt(2) - cur_observ_pnt(2)]);
-                if (travel_distance < d_max) % for sparsity 
-                    edge_cnt = edge_cnt + 1;
-                    vis_cost = vis_cost_set{h}(idx2);                
-                    deviation_d_ref = (d_ref - norm([cur_observ_pnt(1)-cur_target_pos(1),cur_observ_pnt(2)-cur_target_pos(2)]))^2;       
-                    weight = w_v*(vis_cost)^2 + w_d*deviation_d_ref + travel_distance;
-                    fprintf("weight record : %f / %f / %f\n",w_v*vis_cost^2,w_d*deviation_d_ref ,travel_distance)
-                    % add the two connecting nodes with the weight 
-                    node1_list{edge_cnt} = node_name_array{h}{idx1};
-                    node2_list{edge_cnt} = node_name_array{h+1}{idx2};                    
-                    weight_list(edge_cnt) = weight;                    
+                
+                                
+                % for rect segment in the pinch 
+                for s = 1:length(visi_info_set{n}.A_set{h}{p}) 
+                    alpha = 1/visi_info_set{n}.cost_set{h}{p}(s);
+                    if alpha == inf
+                        alpha = max_val;
+                    end                    
+                      if min_val == max_val % this can happen if they are same (in many cases where small rect set)
+                        r = 1; g = 0; b = 0;
+                    else
+                        [r,g,b]=getRGB(alpha,min_val,max_val,1);
+                        plotregion(-visi_info_set{n}.A_set{h}{p}{s},-visi_info_set{n}.b_set{h}{p}{s},[xl yl zl],[xu yu zu],[r g b],0.3);              
+                     end
                 end
             end
-        end                                    
+            
+            axis([xl xu yl yu zl zu])
+            view([0 90])
+            axis equal
+
+        end
+                
 end
 
- % phase3 : graph wrapping 
- for k = 1: length(node_name_array{H+1})
-    edge_cnt = edge_cnt + 1;
-    node1_list{edge_cnt} = node_name_array{H+1}{k};
-    node2_list{edge_cnt} = 'xf';
-    weight_list(edge_cnt)= 0.1;
-end
+%% FIG GEN 2 합치기
+
+
+
+h_drawing = 3;
+figure
+for n = 1: N_target         
+      
+        % only for H = 4
+
+        for h = h_drawing
+            show(map);
+            title("joint")
+            xlabel('')
+            ylabel('')
+            hold on 
+            % draw the target 
+            
+            
+        hhh=plot3(target2_xs,target2_ys,target1_zs,'k^--','LineWidth',2);
+        
+        plot3(target2_xs(h),target2_ys(h),target2_zs(h),'k^','LineWidth',4,'MarkerEdgeColor','k')
+        hhh.Color(4) = 0.2;
+
+        hhh=plot3(target1_xs,target1_ys,target1_zs,'k^--','LineWidth',2);
+        plot3(target1_xs(h),target1_ys(h),target1_zs(h),'k^','LineWidth',4,'MarkerEdgeColor','k')
+        hhh.Color(4) = 0.2;
+
+
+            
+            % for pinch 
+            for p = 1:length(visi_info_set{n}.A_set{h})
+
+                           % let's secure the max value excluding the inf value
+            min_val = 1000;
+            max_val = 0;            
  
-Astar_G=Astar_G.addedge(node1_list,node2_list, (weight_list));
-[path_idx,total_cost]=Astar_G.shortestpath('t0n1','xf','Method','auto');
-%% Phase 8 : plotting the planned path of polyhedron 
-figure
-hold on 
-show(map3)
-axis vis3d off
-idx_seq = [];
-for pnt_idx = path_idx
-    pnt_idx_convert=cell2mat(pnt_idx);
-    idx_seq = [idx_seq str2num(pnt_idx_convert(4:end))];        
-end   
-idx_seq = idx_seq(2:end);
+                % for rect segment in the pinch 
+                for s = 1:length(visi_info_set{n}.A_set{h}{p}) 
+                    cur_score_vec = 1./visi_info_set{n}.cost_set{h}{p};
+                    % we clamping the inf maximum value with non-inf maximum
+                    cur_pinch_min=min(cur_score_vec(cur_score_vec ~= inf));    
+                    cur_pinch_max = max(cur_score_vec(cur_score_vec ~= inf));                    
+                    if min_val > cur_pinch_min
+                        min_val=cur_pinch_min;
+                    end
+                    if max_val < cur_pinch_max
+                        max_val = cur_pinch_max;
+                    end                    
+                end
+                
+                                
+                % for rect segment in the pinch 
+                for s = 1:length(visi_info_set{n}.A_set{h}{p}) 
+                    alpha = 1/visi_info_set{n}.cost_set{h}{p}(s);
+                    if alpha == inf
+                        alpha = max_val;
+                    end                    
+                      if min_val == max_val % this can happen if they are same (in many cases where small rect set)
+                        r = 1; g = 0; b = 0;
+                    else
+                        [r,g,b]=getRGB(alpha,min_val,max_val,1);
+                        plotregion(-visi_info_set{n}.A_set{h}{p}{s},-visi_info_set{n}.b_set{h}{p}{s},[xl yl zl],[xu yu zu],[0 0 0],0.1);              
+                     end
+                end
+            end
+            
+            
+            % joint 
+            %         patch([xl xl xu xu],[yl yu yu yl],(target1_zs(1)+blind_heights(h))*ones(1,4),'b','FaceAlpha',0.4)
+        [~,~,A_blind,b_blind]=no_blind_region([target1_xs(h),target1_ys(h),target1_zs(h)']',[target2_xs(h),target2_ys(h),target2_zs(h)]',FOV);
+        plotregion(-A_blind,-b_blind,[xl yl zl],[xu yu zu],'k',0.3)
 
-conv_hull = {};
+        d_ref = 3.5;
+        w_dev = 0;
+        
+        alpha_max = max(1./vis_cost_set{h} + w_dev./d_dev_div{h});
+        alpha_min = min(1./vis_cost_set{h} + w_dev./d_dev_div{h});
+        
+        for k = 1:length(vis_cost_set{h})        
+            
+            alpha = 1/vis_cost_set{h}(k) + w_dev*1/d_dev_div{h}(k);   
 
-waypoint_polygon_seq = {};
-corridor_polygon_seq = {};
+%             alpha_max = max(1./vis_cost_set{h});
+%             alpha_min = min(1./vis_cost_set{h});
 
+            
+            if (alpha_max ~= inf) && (alpha ~= inf) && (alpha_min ~= inf)
+                [r,g,b]  = getRGB(alpha,alpha_min,alpha_max,1);
+            else
+                r = 1; g = 0; b = 0;
+            end
+            
+            plotregion(-A_div{h}{k} ,-b_div{h}{k} ,[xl yl zl]',[xu yu zu]',[r,g,b],1);
+            plot3(c_div{h}{k}(1),c_div{h}{k}(2),c_div{h}{k}(3),'gs','MarkerSize',1.5,'MarkerFaceColor','g');            
+        end
+        
+            
+            
+            axis([xl xu yl yu zl zu])
+            view([0 90])
+            axis equal
 
-for h = 1:H    
-%     subplot(2,2,h)
-     if h == 1 
-            plot3(tracker(1),tracker(2),tracker(3),'mo','MarkerFaceColor','m')
-     end
-     
-%         hold on 
-%         plot3(target1_xs,target1_ys,target1_zs,'r^-','LineWidth',2)
-%        
-%         plot3(target1_xs(h),target1_ys(h),target1_zs(h),'rs','LineWidth',3,'MarkerSize',10)
-% 
-%         plot3(target2_xs,target2_ys,target2_zs,'r^-','LineWidth',2)
-%         
-%         plot3(target2_xs(h),target2_ys(h),target2_zs(h),'rs','LineWidth',3,'MarkerSize',10)
-% 
-%         plot3(tracker(1),tracker(2),tracker(3),'mo','MarkerFaceColor','m')
-     
-     
-    plotregion(-A_div{h}{idx_seq(h)} ,-b_div{h}{idx_seq(h)} ,[xl yl zl]',[xu yu zu]',[1,0,1],0);
-    hold on
-    % 2D version 
-%     waypoint_polygon_seq{h}.A = A_div{h}{idx_seq(h)};
-%     waypoint_polygon_seq{h}.b = b_div{h}{idx_seq(h)};
-    
-    % 3D version 
-    waypoint_polygon_seq{h}.A = [A_div{h}{idx_seq(h)}];
-    waypoint_polygon_seq{h}.b =[b_div{h}{idx_seq(h)}];
-               
-    if h ==1 
-        vert1 = tracker';
-    else
-        vert1 = v_div{h-1}{idx_seq(h-1)};        
-    end    
-    vert2 = v_div{h}{idx_seq(h)};    
-    vert = [vert1 ; vert2];       
-    K = convhull(vert(:,1), vert(:,2),vert(:,3));    
-    shp = alphaShape(vert2(:,1),vert2(:,2),vert2(:,3),2);
-    plot(shp,'EdgeColor','m','FaceColor',[1 0 1],'FaceAlpha',0.5,'LineWidth',1)
-    
-    [A_corr,b_corr]=vert2con(vert(K,:));
-    % corridor connecting each waypoint polygon 
-    
-%     corridor_polygon_seq{h}.A =[A_corr] ;
-%     corridor_polygon_seq{h}.b = [b_corr]; 
-    
-    corridor_polygon_seq{h}.A =[A_corr ] ;
-    corridor_polygon_seq{h}.b = b_corr;        
-    axis([xl xu yl yu zl zu])
+        end
+                
 end
-
-% save('polygon_seq','waypoint_polygon_seq','corridor_polygon_seq');
-
-%% Phase 8-1: safe corridor generation 
-
-
-
-%% Phase 9: generation of smooth path (currently, the convex hull is assumed to be collision free, additional modification required)
-
-ts= [0 1 2 3 4];
-
-X0 = [tracker];
-Xdot0 = zeros(3,1);
-Xddot0 = zeros(3,1);
-
-% figure
-
-% smooth path generation in the corrideor  (TODO)
-w_wpnts =0; % weight for waypoint deriving 
-[pxs,pys,pzs]=min_jerk_ineq(ts,X0,Xdot0,Xddot0,waypoint_polygon_seq,corridor_polygon_seq,w_wpnts);
-
-% draw path 
-for h = 1:H
-%     subplot(2,2,h)
-    hold on
-    [xps, yps, zps]=plot_poly_spline(ts,reshape(pxs,[],1),reshape(pys,[],1),reshape(pzs,[],1),'c-');    
-    axis equal
-end
-
-
-%% Phase 10: camera included 
-% final result 
-figure
-% subplot(4,2,1:4)
-% show(map3)
-axis vis3d off
-hold on 
-plot3(target1_xs,target1_ys,target1_zs,'r^-','LineWidth',2)
-plot3(target2_xs,target2_ys,target2_zs,'r^-','LineWidth',2)
-plot3(tracker(1),tracker(2),2,'mo','MarkerFaceColor','m')
-draw_box([xl yl zl],[xu yu zu],'k',0.)
-
-% this is wrapping of the octomap voxels 
-margin = 0.5*ones (1,3);
-
-% for idx = 1:max(IDX)
-%     draw_box(boxes{idx}.lower - margin,boxes{idx}.upper + margin,'k',0.6)
-% end
-
-show(map3)
-axis([xl  xu yl yu zl zu])
-
-[knot_x,knot_y, knot_z]=plot_poly_spline(ts,reshape(pxs,[],1),reshape(pys,[],1),reshape(pzs,[],1),'c-');  
-
-% draw camera  
-for i = 1: length(knot_x)-1
-    camera_origin = [knot_x(i+1) knot_y(i+1) knot_z(i+1)];
-   
-    % body axis of camera
-    
-    v1 = [(-camera_origin(1)  + target1_xs(i)) (-camera_origin(2)  + target1_ys(i)) (-camera_origin(3)  + target1_zs(i)) ]'; % bearing vector to target1
-    v2 = [(-camera_origin(1)  + target2_xs(i)) (-camera_origin(2)  + target2_ys(i)) (-camera_origin(3)  + target2_zs(i)) ]'; % bearing vector to target2
-
-    % we pick the bearing point by equally dividing the angle of v1 and v2 
-    
-    target1 = [target1_xs(i) target1_ys(i) target1_zs(i)];
-    target2 = [target2_xs(i) target2_ys(i) target2_zs(i)];
-    seeing_pnt = (norm(v2)*target1 + norm(v1)*target2)/(norm(v1) + norm(v2));
-    
-    
-    
-%     % viewing the midpoint does not guarantee FOV constraint 
-%     seeing_pnt  = [(target1_xs(i) + target2_xs(i))/2 ...
-%         (target1_ys(i) + target2_ys(i))/2 ...
-%         (target1_zs(i) + target2_zs(i))/2 ];
-%     
-    
-    
-    xb = seeing_pnt - camera_origin;
-    xb = xb'/norm(xb); % 3 x 1 
-    
-    pan = atan2(xb(2),xb(1));
-    tilt = atan2(xb(3),sqrt(xb(1)^2 + xb(2)^2));
-    
-    h=0.5;
-    
-    camera_R = eul2rotm([pan -tilt 0]);    
-    plot_camera(camera_origin,camera_R,FOV,h,1)
-    
-    
-    % draw the projection of target1 
-    plot3([camera_origin(1) target1_xs(i)],[camera_origin(2) target1_ys(i)],[camera_origin(3) target1_zs(i)],'r-')
-
-    t1 = (norm(xb)^2 * h )/(xb' * v1);
-    proj_img_plane = camera_origin' + t1 * v1;
-    plot3(proj_img_plane(1),proj_img_plane(2),proj_img_plane(3),'r*')
-
-    
-    % draw the projection of target2 
-    plot3([camera_origin(1) target2_xs(i)],[camera_origin(2) target2_ys(i)],[camera_origin(3) target2_zs(i)],'r-')
-
-    t2 = (norm(xb)^2 * h )/(xb' * v2);
-    proj_img_plane = camera_origin' + t2 * v2;
-    plot3(proj_img_plane(1),proj_img_plane(2),proj_img_plane(3),'r*')
-
-end
-axis([xl  xu yl yu zl zu])
-
-axis equal
-
-
-
-
-
 
 
 
