@@ -1,3 +1,11 @@
+%% Description
+% this code simulates a scenario. 
+
+addpath('..\ASAP1','.\','..\plotregion\');
+addpath('..\STOMP\')
+addpath('..\intercept\') % for Rplot and proj_image
+addpath('polytopes_2017_10_04_v1.9\')
+
 %% Phase 8 : plotting the planned path of polyhedron 
 
 figure
