@@ -78,7 +78,7 @@ if ~isempty(pcl)
     map3.insertPointCloud(pcl_origin_pose,pcl,max_range);
 end
 figure
-show(map3)
+show(map)
 axis vis3d off
 
 axis equal
@@ -753,12 +753,13 @@ end
 figure
 % subplot(4,2,1:4)
 % show(map3)
-axis vis3d off
+% axis vis3d off
 hold on 
 plot3(target1_xs,target1_ys,target1_zs,'r^-','LineWidth',2)
 plot3(target2_xs,target2_ys,target2_zs,'r^-','LineWidth',2)
 plot3(tracker(1),tracker(2),2,'mo','MarkerFaceColor','m')
-draw_box([xl yl zl],[xu yu zu],'k',0.)
+
+% draw_box([xl yl zl],[xu yu zu],'k',0.)
 
 % this is wrapping of the octomap voxels 
 margin = 0.5*ones (1,3);
@@ -768,8 +769,16 @@ margin = 0.5*ones (1,3);
 % end
 
 show(map3)
+xlabel('')
+ylabel('')
+zlabel('')
 axis([xl  xu yl yu zl zu])
-
+set(gca,'xtick',[])
+set(gca,'xticklabel',[])
+set(gca,'ytick',[])
+set(gca,'yticklabel',[])
+set(gca,'ztick',[])
+set(gca,'zticklabel',[])
 [knot_x,knot_y, knot_z]=plot_poly_spline(ts,reshape(pxs,[],1),reshape(pys,[],1),reshape(pzs,[],1),'c-');  
 
 % draw camera  

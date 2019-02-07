@@ -512,7 +512,7 @@ end
 
 %% FIGURE GEN 1 - 따로 따로
 
-h_drawing = 3;
+h_drawing = 2;
 
 for n = 1: N_target         
       figure
