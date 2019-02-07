@@ -1,0 +1,20 @@
+function val = point_eval_fun(x1,x2,param)
+    % this function is for numerical integration 
+    % x1 : array /
+    As=param.As;
+    bs=param.bs;
+    mu = param.mu;
+    
+    % if the point is in shade, returns 0 
+    is_in_shading = zeros(size(x1));
+    for n = 1:length(As)
+        is_in_shading = logical(is_in_shading + all(As{n}*[x1;x2]<=bs{n}));        
+    end
+    
+    
+    
+    
+    
+
+
+end

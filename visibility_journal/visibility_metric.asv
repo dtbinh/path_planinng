@@ -4,8 +4,6 @@
 addpath('..\ASAP1','..\multi_target_tracking\','..\plotregion\');
 addpath('..\multi_target_tracking\polytopes_2017_10_04_v1.9')
 addpath(genpath('.\Matlab_Polygons_intersection\'))
- addpath(genpath(pwd))
-
 %% Map setting
 
 map_dim = 40;

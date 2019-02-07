@@ -11,15 +11,20 @@
 % Contact Info: sm.kalami@gmail.com, info@yarpiz.com
 %
 
-function [IDX, isnoise]=DBSCAN(X,epsilon,MinPts)
+function [IDX, isnoise]=DBSCAN(X,epsilon,MinPts,metric)
+
+
 
     C=0;
     
     n=size(X,1);
     IDX=zeros(n,1);
     
-    D=pdist2(X,X);
-    
+    if nargin == 2
+        D=pdist2(X,X);
+    else
+        D=metric(X,X);
+    end
     visited=false(n,1);
     isnoise=false(n,1);
     
