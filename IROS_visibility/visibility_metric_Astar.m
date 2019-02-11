@@ -1,0 +1,406 @@
+%% Description 
+% this code generates visiblity field for a target represented by a
+% gaussian model 
+addpath('..\ASAP1','..\multi_target_tracking\','..\plotregion\');
+addpath('..\multi_target_tracking\polytopes_2017_10_04_v1.9')
+addpath(genpath('..\robot-10.1'))
+addpath(genpath('.\Matlab_Polygons_intersection\'))
+addpath(genpath(pwd))
+
+%% Map setting
+
+map_dim = 40;
+world_lx = 10; world_ly = 10; % size of map in real coordinate 
+res = world_lx / map_dim;
+custom_map=makemap(map_dim); % draw obstacle interactively
+% or load the simple example 
+%load('prob_setting.mat')
+% get boundary
+% sdf = signed_distance_transform(custom_map);
+% boundary_map = (sdf == 0);
+
+%% Generate map and set the target and tracker loc 
+figure
+map = robotics.OccupancyGrid(flipud(custom_map),1/res);
+h =show(map);
+% target = [5 4];
+vel = [1 0.5]; % predicted velocity 
+hold on
+[target_path_x, target_path_y,tracker]=set_target_tracker();
+t0 = 0; tf = 4;
+ts = linspace(t0,tf,length(target_path_x));
+
+cs_x = spline(ts,target_path_x);
+cs_y = spline(ts,target_path_y);
+cs_dx=fnder(cs_x,1);
+cs_dy = fnder(cs_y,1);
+
+target_dxs = ppval(cs_dx,ts);
+target_dys = ppval(cs_dy,ts);
+
+t_evals = linspace(t0,tf,30);
+target_xs = ppval(cs_x,t_evals);
+target_ys = ppval(cs_y,t_evals);
+h_target = plot(target_xs,target_ys,'b-','LineWidth',2);
+h_target.Color(4)  = 0.4;
+
+for i = 1:length(target_path_x)
+text(target_path_x(i)-0.1,target_path_y(i)+0.5,strcat('\it',sprintf('t_%d',i)))
+end
+plot(target_path_x,target_path_y,'go','MarkerFaceColor','g')
+ quiver(target_path_x,target_path_y,target_dxs,target_dys,'m','LineWidth',2);
+
+
+% original map 
+occ_mat_origin = map.occupancyMatrix;
+occ_mat_origin(occ_mat_origin>0.5) = 1; occ_mat_origin(occ_mat_origin<0.5) = 0; 
+dist_map_origin = signed_distance_transform(occ_mat_origin);
+dist_map_origin(dist_map_origin < 0) = 0;
+%% Generate visibility field 
+% load('map.mat')
+figure
+score_map_t = {}; % the score map along time 
+dist_map_t = {};
+for j = 1:length(target_path_x)
+%     vel = [target_dxs(j) target_dys(j)]/norm([target_dxs(j) target_dys(j)]);
+    vel = [target_dxs(j) target_dys(j)];
+    subplot(length(target_path_x),1,j)
+    % trace occ_mat 
+    N_trace = 3;
+    alpha=0.4;
+    occ_mat = zeros(size(occ_mat_origin));
+    
+    for trans_val = 0:N_trace
+        occ_mat_trans=shiftmatrix(occ_mat_origin,1,[-floor(alpha*vel(1)/res/N_trace*trans_val) floor(alpha*vel(2)/res/N_trace*trans_val)],0);
+        occ_mat = double(logical(occ_mat) | logical(occ_mat_trans));
+    end
+    dist_map=signed_distance_transform(occ_mat);
+    dist_map(dist_map<0)=0;
+    dist_map_t{j}  = dist_map;
+    % visi map 
+    score_map = zeros(map.GridSize);
+    for r = 1:map.GridSize(1)
+        for c = 1:map.GridSize(2)
+            loc = map.grid2world([r c]);
+
+            [end_pnts,mid_pnts]=map.raycast([target_path_x(j)  target_path_y(j)],loc);
+            mid_pnts = [mid_pnts;end_pnts];
+            dist_val_along_ray = zeros(1,length(mid_pnts));        
+            for i = 1:size(mid_pnts,1)
+                dist_val_along_ray(i) = dist_map(mid_pnts(i,1),mid_pnts(i,2));
+            end
+            visi_val =min(dist_val_along_ray);        
+            score_map(r,c) = visi_val;               
+        end
+    end
+    hold on
+
+    h_target = plot3(target_path_x(j),target_path_y(j),10,'go','MarkerFaceColor','g');
+    h_vel = quiver(target_path_x(j),target_path_y(j),2*vel(1),2*vel(2),'m','LineWidth',3,'MaxHeadSize',5);
+
+    score_map_t{j} = score_map;
+    [Ys,Xs] = meshgrid(linspace(map.XWorldLimits(1),map.XWorldLimits(2),map.GridSize(1)),linspace(map.YWorldLimits(1),map.YWorldLimits(2),map.GridSize(2)));
+    surf(Ys,10-Xs,score_map,'EdgeColor','none','FaceAlpha',0.4)
+    colormap(jet)
+    caxis([min(min(score_map)) max(max(score_map))])
+%     shading interp
+    grid off
+
+
+    % draw original map 
+    [occ_idx_r,occ_idx_c] = find(map.occupancyMatrix >0.5); 
+    for idx =1: length(occ_idx_r)
+        loc=map.grid2world([occ_idx_r(idx) occ_idx_c(idx)]);
+        dx = res/2;
+        fill3([loc(1)-dx loc(1)+dx loc(1)+dx loc(1)-dx],[loc(2)-dx loc(2)-dx loc(2)+dx loc(2)+dx],[100 100 100 100],'k')
+    end
+    
+    title(strcat('\it ',sprintf('t_%d',(j-1))));
+    
+end
+
+%% EDT 
+figure
+for h = 1:length(target_path_x)
+    subplot(length(target_path_x),1,h)
+    [Ys,Xs] = meshgrid(linspace(map.XWorldLimits(1),map.XWorldLimits(2),map.GridSize(1)),linspace(map.YWorldLimits(1),map.YWorldLimits(2),map.GridSize(2)));
+    surf(Ys,10-Xs,dist_map_t{h},'EdgeColor','none','FaceAlpha',0.8)
+    hold on
+    colormap(pink)
+    
+        % draw original map 
+    [occ_idx_r,occ_idx_c] = find(map.occupancyMatrix >0.5); 
+    for idx =1: length(occ_idx_r)
+        loc=map.grid2world([occ_idx_r(idx) occ_idx_c(idx)]);
+        dx = res/2;
+        fill3([loc(1)-dx loc(1)+dx loc(1)+dx loc(1)-dx],[loc(2)-dx loc(2)-dx loc(2)+dx loc(2)+dx],[100 100 100 100],'b')
+    end
+    view([0 90])
+    vel = [target_dxs(h) target_dys(h)];
+
+    plot3(target_path_x(h),target_path_y(h),100,'go','MarkerFaceColor','g')
+    h_vel = quiver3(target_path_x(h),target_path_y(h),100,2*vel(1),2*vel(2),0,'m','LineWidth',3,'MaxHeadSize',5);
+    title(strcat('\it ',sprintf('t_%d',(h-1))));
+    
+end
+%% generate field nodes 
+nodes_t = {}; % the points of node 
+visi_score_t = {}; % corresponding visibility score 
+d_min = 1; % minimum distance to be maintained 
+figure
+for h = 2:length(target_path_x)   
+% for h = 1  
+
+    target = [target_path_x(h) target_path_y(h)];
+    vel = [target_dxs(h) target_dys(h)];
+    lx0 = 2; ly = 2;% window dim 
+    lx = norm(vel) + lx0;
+    [xs,ys] = meshgrid(-lx:2*res:lx,-ly:2*res:ly);
+    
+    rect = [-lx lx lx -lx ; -ly -ly ly ly];
+    pnts = [xs(:)' ; ys(:)'];
+    R = SE2([vel'/norm(vel) rot2(pi/2)*vel'/norm(vel)]);
+    R.t = target;
+    pnts_tran=R*pnts; 
+    
+%     % this is for plotting surf in the rect 
+%     pnts_mesh_x = reshape(pnts_tran(1,:),size(xs));
+%     pnts_mesh_y = reshape(pnts_tran(1,:),size(ys));
+%     score_field_in_rect = zeros(size(xs));
+%     
+%     for r = 1:size(xs,1)
+%         for c = 1:size(xs,2)
+%             index = map.world2grid([pnts_mesh_x(r) pnts_mesh_x(c)]);
+%             score_field_in_rect(r,c)=score_map_t{h}(index(1),index(2));    
+%         end
+%     end
+%     
+    
+    rect_tran = R*rect;
+    hold on
+    % boundary condition 
+    in_bound_idx = (map.XWorldLimits(1) <pnts_tran(1,:)) & (map.XWorldLimits(2) >pnts_tran(1,:)) &...
+        (map.YWorldLimits(1) < pnts_tran(2,:)) & (map.YWorldLimits(2) > pnts_tran(2,:));
+    
+    % safety condition 
+    in_pnts_tran = [pnts_tran(1,in_bound_idx) ;pnts_tran(2,in_bound_idx) ];
+    
+    safe_idx = (map.getOccupancy(in_pnts_tran')<0.5)' & (vecnorm(in_pnts_tran-target(:))>d_min);
+    
+    nodes_t{h}.xs = in_pnts_tran(1,safe_idx);
+    nodes_t{h}.ys = in_pnts_tran(2,safe_idx);
+    
+    indices =  map.world2grid([nodes_t{h}.xs' nodes_t{h}.ys']);
+    visi_score_t{h} = zeros(1,length(indices));
+    for id = 1:length(indices)
+        visi_score_t{h}(id)=score_map_t{h}(indices(id,1),indices(id,2));
+    end
+
+    patch(rect_tran(1,:),rect_tran(2,:),'k','FaceAlpha',0.1)
+    plot(nodes_t{h}.xs,nodes_t{h}.ys,'ro','MarkerFaceColor','k','MarkerSize',2)
+    axis([0 10 0 10])
+    axis equal
+%     pause
+end
+
+%% Astar for the path of region segmentsd
+
+node_name_array = {}; %string -> this will be used in matalb graph library 
+node_idx_array={}; % segment index (what time? and what (A,b)?)
+
+name_vec = {'t0n1'};
+loc_vec = tracker;
+node_name_array{1} = name_vec; % initialize the node name array
+
+w_v = 5; % visibility weight for optimization 
+w_d = 1; % weight for desired distance 
+d_max = 3; % allowable connecting distane btw "center of region"
+Astar_G = digraph();
+
+% for update egde only once at the final phase 
+node1_list = {};
+node2_list = {};
+weight_list = [];
+edge_cnt = 0;
+
+for h = 2:length(target_path_x)
+        % phase1 : add node at this future step
+        node_name_array{h} = strseq(strcat('t',num2str(h),'n'),1:length(visi_score_t{h}));    
+        
+        Astar_G=Astar_G.addnode(node_name_array{h});    
+        cur_target_pos = [target_path_x(h) ; target_path_y(h)];     % target position at this future time step 
+        
+        % phase2: connect edges with previus layer
+        for idx1 = 1:length(node_name_array{h-1}) % previous step
+            for idx2 = 1:length(node_name_array{h}) % current step                
+                % would-be node 
+                cur_observ_pnt = [nodes_t{h}.xs(idx2) nodes_t{h}.ys(idx2)];                 
+                if h ~= 2
+                    prev_observ_pnt= [nodes_t{h-1}.xs(idx1) nodes_t{h-1}.ys(idx1)];
+                else
+                    prev_observ_pnt = tracker;
+                end
+                
+                joint_score_map = (score_map_t{h}/max(max(score_map_t{h})) + score_map_t{h-1}/max(max(score_map_t{h-1})))/2;
+                
+                
+                % travel distance
+                travel_distance = norm([prev_observ_pnt(1) - cur_observ_pnt(1),prev_observ_pnt(2) - cur_observ_pnt(2)]);
+                
+                % let's investigate safety
+                [end_pnts,mid_pnts]=map.raycast([prev_observ_pnt(1) prev_observ_pnt(2)],cur_observ_pnt);
+                mid_pnts = [mid_pnts;end_pnts];
+                
+                dist_val_along_ray = zeros(1,length(mid_pnts));  
+                score_along_ray = zeros(1,length(mid_pnts));
+                
+                for i = 1:size(mid_pnts,1)
+                    dist_val_along_ray(i) = dist_map_origin(mid_pnts(i,1),mid_pnts(i,2));
+                    score_along_ray(i) = joint_score_map(mid_pnts(i,1),mid_pnts(i,2));
+                end                
+                
+                 is_safe = min(dist_val_along_ray) > 1; % safe threshold 
+                 
+                if ((travel_distance < d_max) && is_safe) 
+                    edge_cnt = edge_cnt + 1;
+
+                    if sum(score_along_ray) ==0
+                        vis_cost = inf;
+                    else
+                        vis_cost = 1/sum(score_along_ray);
+                    end
+                        
+                    weight = w_v*vis_cost + travel_distance;
+                    % add the two connecting nodes with the weight 
+                    node1_list{edge_cnt} = node_name_array{h-1}{idx1};
+                    node2_list{edge_cnt} = node_name_array{h}{idx2};                    
+                    weight_list(edge_cnt) = weight;                    
+                end
+            end
+        end                                    
+end
+
+ % phase3 : graph wrapping 
+ for k = 1: length(node_name_array{length(target_path_x)})
+    edge_cnt = edge_cnt + 1;
+    node1_list{edge_cnt} = node_name_array{length(target_path_x)}{k};
+    node2_list{edge_cnt} = 'xf';
+    weight_list(edge_cnt)= 0.1;
+end
+ 
+Astar_G=Astar_G.addedge(node1_list,node2_list, (weight_list));
+[path_idx,total_cost]=Astar_G.shortestpath('t0n1','xf','Method','auto');    
+
+
+%% solution inspection 
+
+idx_seq = [];
+for pnt_idx = path_idx
+    pnt_idx_convert=cell2mat(pnt_idx);
+    idx_seq = [idx_seq str2num(pnt_idx_convert(4:end))];        
+end   
+idx_seq = idx_seq(2:end);
+
+% solution inter distance 
+sol_path = zeros(2,length(target_path_x));
+sol_path(:,1) =tracker;
+for h = 2:length(target_path_x)
+    sol_path(:,h) = [nodes_t{h}.xs(idx_seq(h-1)),nodes_t{h}.ys(idx_seq(h-1))]';
+end
+inter_dist = vecnorm(sol_path(:,1:end-1) - sol_path(:,2:end)); 
+
+% dx= 2*res;
+% for h = h_danger
+%     
+%     pnt1 = sol_path(:,h);
+%     pnt2 = sol_path(:,h+1);
+%     
+%     xl = min(pnt1(1),pnt2(1)); 
+%     yl = min(pnt1(2),pnt2(2));
+%     xu = max(pnt1(1),pnt2(1));
+%     yu = max(pnt1(2),pnt2(2));    
+%     
+%     % aux field
+%     [xs,ys] = meshgrid(linspace(xl,xu,ceil((xu-xl)/dx)),linspace(yl,yu,ceil(yu-yl)/dx));
+%        
+%     in_bound_idx = (map.XWorldLimits(1) <xs(:)) & (map.XWorldLimits(2) >xs(:)) &...
+%     (map.YWorldLimits(1) < ys(:)) & (map.YWorldLimits(2) > ys(:));
+%     in_pnts = [xs(in_bound_idx) ys(in_bound_idx)];
+%     
+%     safe_idx = (map.getOccupancy(in_pnts)<0.5)' ;
+%     plot(xs(safe_idx),ys(safe_idx),'ro','MarkerSize',2)
+%     
+%     % let's assign score to each pnts in aux field
+%     score_map_aux = score_map_t{h} +score_map_t{h+1};
+%     scores = zeros(size(xs));
+%     
+%     for r = 1:size(xs,1)
+%         for c = 1:size(xs,2)
+%             loc = [xs(r,c) ys(r,c)];
+%             loc_idx = map.world2grid(loc);
+%             scores(r,c)=w_v*score_map_aux(loc_idx(1),loc_idx(2)) + norm(loc-pnt1')^2 + norm(loc-pnt2')^2;            
+%         end        
+%     end
+%     
+%     [~,max_idx]=max(scores(:));
+%     scores(max_idx)
+%     
+% end
+
+
+%%
+
+% solution plot 
+
+figure
+h =show(map);
+hold on
+h_target = plot(target_xs,target_ys,'b-','LineWidth',4);
+% h_target.Color(4)  = 0.4;
+
+
+ plot(target_path_x,target_path_y,'mo','MarkerFaceColor','g','MarkerSize',10);
+% h_quiver =  quiver(target_path_x,target_path_y,target_dxs,target_dys,'m','LineWidth',2)
+
+% h_quiver.Color(4) = 0.1;
+% plot([tracker(1) sol_path(1,:)],[ tracker(2)  sol_path(2,:)],'ro','MarkerFaceColor','r','MarkerSize',10)  
+
+
+%  pp min snap
+waypnts = sol_path; 
+knots = ts;
+v0 = [0,0];
+a0 = [0,0];
+% not be used the terminal condition 
+v1 = [0,0];
+a1 = [0,0];
+n_order = 6;
+r = 0.4;
+[xx,yy,tt,~,~,h_patch]=minimum_snap_corridor(knots,waypnts,v0,a0,v1,a1,n_order,r);
+h_tracker = plot(xx,yy,'r','LineWidth',3);
+
+
+for knot_idx = 1:length(ts)
+    idx1 = find(tt==ts(knot_idx));
+    idx2 = find(tt==ts(min(knot_idx+1,length(ts))));
+    ctrl_pnt = [xx(idx1)  yy(idx1)];
+    plot(ctrl_pnt(1),ctrl_pnt(2),'ko','MarkerFaceColor','r','MarkerSize',10)
+    h_quiver = quiver(ctrl_pnt(1),ctrl_pnt(2),(target_path_x(knot_idx)-ctrl_pnt(1))*0.9 ,(target_path_y(knot_idx)-ctrl_pnt(2))*0.9 ,'k-','LineWidth',3,'AutoScale','off');
+    h_quiver.Color(4) =0.1;
+    for sub_idx = linspace(idx1,idx2,10)
+        observer = [xx(floor(sub_idx)) yy(floor(sub_idx))];
+        target_= [ppval(cs_x,tt(floor(sub_idx))) ppval(cs_y,tt(floor(sub_idx)))];
+        quiver(observer(1),observer(2),target_(1)-observer(1),target_(2)-observer(2),'k-','LineWidth',0.4,'AutoScale','off');        
+    end
+end
+
+
+
+for i = 1:length(target_path_x)
+% t_h = text(target_path_x(i)-0.4,target_path_y(i)+0.5,strcat('\it',sprintf('t_%d',i-1)));
+t_h = gtext(strcat('\it',sprintf('t_%d',i-1)));
+
+t_h.FontSize = 15;
+end
+legend([h_target h_tracker h_quiver h_patch],{'target','tracker','bearing vec','safe corridor'})
+title('\it w_v = 5')

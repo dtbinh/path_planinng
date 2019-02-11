@@ -5,21 +5,36 @@ function [A_shading,b_shading] = get_shading(observer,rect)
     box_center = (pnt1 + pnt2 + pnt3 + pnt4)/4;
     bearing_vec2_box = [box_center(1)- observer(1);box_center(2)- observer(2)];
     % lambda function smeasuring two inner angle between two vectors 
-    angle_btw_two = @(x1,x2) acos(abs(dot(x1,x2))/norm(x1)/norm(x2));
+    angle_btw_two = @(x1,x2) abs(acos((dot(x1,x2))/norm(x1)/norm(x2)));
     % let;s compare 4 rays 
-    ray1 = pnt1 - observer'; theta1 = angle_btw_two(ray1,bearing_vec2_box);
-    ray2 = pnt2 - observer'; theta2 = angle_btw_two(ray2,bearing_vec2_box);
-    ray3 = pnt3 - observer'; theta3 = angle_btw_two(ray3,bearing_vec2_box);
-    ray4 = pnt4 - observer'; theta4 = angle_btw_two(ray4,bearing_vec2_box);
-    pnts = [pnt1 pnt2 pnt3 pnt4];
-    rays = [ray1 ray2 ray3 ray4];
-    angles = [theta1 theta2 theta3 theta4];
-    [~,sort_idx] = sort(angles); 
-    proj_pnts = pnts(:,sort_idx(3:4));
-    for i = 1:2
-        h = plot([proj_pnts(1,i) observer(1)],[proj_pnts(2,i) observer(2)],'LineWidth',1,'Color',[0.8 0 0]);
-        h.Color(4) =0.4;
+    combi_set = combnk(1:4,2);
+    
+%     ray1 = pnt1 - observer'; theta1 = angle_btw_two(ray1,bearing_vec2_box);
+%     ray2 = pnt2 - observer'; theta2 = angle_btw_two(ray2,bearing_vec2_box);
+%     ray3 = pnt3 - observer'; theta3 = angle_btw_two(ray3,bearing_vec2_box);
+%     ray4 = pnt4 - observer'; theta4 = angle_btw_two(ray4,bearing_vec2_box);
+%     pnts = [pnt1 pnt2 pnt3 pnt4];
+%     rays = [ray1 ray2 ray3 ray4];
+    angles = zeros(6,1);
+    for n = 1:length(combi_set)
+         idx1 =  combi_set(n,1); ray1 = rect(:,idx1) - [observer(1) ; observer(2)];
+         idx2 =  combi_set(n,2); ray2 = rect(:,idx2) - [observer(1) ; observer(2)];
+         angles(n)=angle_btw_two(ray1,ray2);
     end
+    [~,max_idx] = max(angles);
+%     angles = [theta1 theta2 theta3 theta4];
+%     [~,sort_idx] = sort(angles); 
+
+    idx1 = combi_set(max_idx,1);
+    idx2 = combi_set(max_idx,2);
+    
+    
+    proj_pnts = rect(:,[idx1 idx2]);
+    
+%     for i = 1:2
+%         h = plot([proj_pnts(1,i) observer(1)],[proj_pnts(2,i) observer(2)],'LineWidth',1,'Color',[0.8 0 0]);
+%         h.Color(4) =0.4;
+%     end
     
     % determine linear inequality 
     % direction of n1-n2 ? let's determine the sign 

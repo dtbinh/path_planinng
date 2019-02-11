@@ -13,6 +13,6 @@ function I = pdf_tri_integral(mu,Sigma,triangle)
     ymin = @(x) (triangle1(2,3) - triangle1(2,1))/(triangle1(1,3)-triangle1(1,1))*(x-triangle1(1,1)) + triangle1(2,1);
 
     pdf_fun=@(x1,x2) reshape(mvnpdf([x1(:) x2(:)],mu1',Sigma1),size(x1));
-    I=integral2(pdf_fun,triangle1(1,3),triangle1(1,1),ymin,ymax)
+    I=integral2(pdf_fun,triangle1(1,3),triangle1(1,1),ymin,ymax);
 
 end
